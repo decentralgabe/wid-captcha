@@ -28,6 +28,10 @@ export interface WidCaptchaContextType {
   isVerified: boolean
   isVerifying: boolean
   verificationMethod: VerificationMethod
-  verify: () => Promise<VerificationResult>
+  error: Error | null
+  verifyProof: (payload: { idkit_response?: any; recaptcha_token?: string }) => Promise<VerificationResult>
   reset: () => void
+  isRecaptchaScriptLoaded: boolean
+  // Keeping verify for backward compatibility if needed
+  verify?: () => Promise<VerificationResult>
 }

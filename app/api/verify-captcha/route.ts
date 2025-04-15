@@ -15,7 +15,7 @@ if (!RECAPTCHA_SECRET_KEY) {
 }
 
 // --- World ID Verification --- //
-const WORLD_ID_VERIFY_URL = `https://developer.worldcoin.org/api/v1/verify/${WLD_APP_ID}`;
+const WORLD_ID_VERIFY_URL = `https://developer.worldcoin.org/api/v2/verify/${WLD_APP_ID}`;
 
 interface IDKitResponse {
     merkle_root: string;

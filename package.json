@@ -57,7 +57,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
-    "@worldcoin/idkit": "latest"
+    "@worldcoin/idkit": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^22",

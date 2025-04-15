@@ -32,46 +32,6 @@ interface WidCaptchaProps {
   containerId?: string
 }
 
-// Create a separate component for the IDKit content
-const IDKitContent = ({
-  open,
-  isVerifying,
-  contextIsVerifying,
-  isVerified,
-  worldIdContainerId
-}: {
-  open: () => void,
-  isVerifying: boolean,
-  contextIsVerifying: boolean,
-  isVerified: boolean,
-  worldIdContainerId: string
-}) => {
-  useEffect(() => {
-    if (!isVerified) {
-      console.log("Opening World ID widget");
-      open();
-    }
-  }, [isVerified, open]);
-
-  return (
-    <div className="flex flex-col items-center justify-center space-y-2">
-      {(isVerifying || contextIsVerifying) ? (
-        <div className="text-center text-sm text-gray-500">
-          <Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...
-        </div>
-      ) : (
-        <div className="text-center text-sm text-gray-500">
-          {/* Container for the World ID QR code */}
-          <div
-            id={worldIdContainerId}
-            className="w-[300px] h-[350px] flex justify-center items-center border border-gray-300 rounded-md mb-2"
-          ></div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   appId,
   actionId,
@@ -204,7 +164,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
+      <CardHeader className="text-center">
         <CardTitle>Human Verification</CardTitle>
         <CardDescription>{signalDescription}</CardDescription>
       </CardHeader>
@@ -234,17 +194,23 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
                   handleVerify={async () => {
                     return Promise.resolve();
                   }}
+                />
+              )}
+
+              {/* Conditionally render Verifying state or QR Code container */}
+              {(isVerifying || contextIsVerifying) ? (
+                <div className="text-center text-sm text-gray-500 h-[350px] flex flex-col justify-center items-center">
+                  <Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...
+                </div>
+              ) : (
+                /* Container where the World ID QR code will be rendered by IDKitWidget */
+                <div
+                  id={worldIdContainerId}
+                  className="flex justify-center items-center mb-2"
                 >
-                  {({ open }) => (
-                    <IDKitContent
-                      open={open}
-                      isVerifying={isVerifying}
-                      contextIsVerifying={contextIsVerifying}
-                      isVerified={isVerified}
-                      worldIdContainerId={worldIdContainerId}
-                    />
-                  )}
-                </IDKitWidget>
+                  {/* Optional: Placeholder content while IDKit initializes */}
+                  {!isClient && <p className="text-xs text-gray-400">Initializing World ID...</p>}
+                </div>
               )}
 
               {/* Divider */}

@@ -20,7 +20,7 @@ declare global {
 
 // Props with recaptcha included for future use
 interface WidCaptchaProps {
-  appId: string
+  appId: `app_${string}`
   actionId: string
   recaptchaSiteKey: string
   signal?: string
@@ -28,20 +28,68 @@ interface WidCaptchaProps {
   verificationLevel?: VerificationLevel
   onVerificationComplete?: (result: VerificationResult) => void
   children?: React.ReactNode
+  /** Container ID where the World ID QR code should be rendered */
+  containerId?: string
 }
+
+// Create a separate component for the IDKit content
+const IDKitContent = ({
+  open,
+  isVerifying,
+  contextIsVerifying,
+  isVerified,
+  worldIdContainerId
+}: {
+  open: () => void,
+  isVerifying: boolean,
+  contextIsVerifying: boolean,
+  isVerified: boolean,
+  worldIdContainerId: string
+}) => {
+  useEffect(() => {
+    if (!isVerified) {
+      console.log("Opening World ID widget");
+      open();
+    }
+  }, [isVerified, open]);
+
+  return (
+    <div className="flex flex-col items-center justify-center space-y-2">
+      {(isVerifying || contextIsVerifying) ? (
+        <div className="text-center text-sm text-gray-500">
+          <Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...
+        </div>
+      ) : (
+        <div className="text-center text-sm text-gray-500">
+          {/* Container for the World ID QR code */}
+          <div
+            id={worldIdContainerId}
+            className="w-[300px] h-[350px] flex justify-center items-center border border-gray-300 rounded-md mb-2"
+          ></div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   appId,
   actionId,
   recaptchaSiteKey,
-  signal = "",
-  signalDescription = "Verify you're human",
+  signalDescription = "Verify You're a Human",
   verificationLevel = VerificationLevel.Orb,
   onVerificationComplete,
   children,
+  containerId,
 }) => {
-  // Use the IDKit hook for programmatic control
-  const { setOpen } = useIDKit()
+  // Use default container ID if not provided
+  const worldIdContainerId = containerId || `worldid-container-${appId}`;
+
+  // Client-side rendering check
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Use the context hook to get state
   const {
@@ -57,17 +105,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   const [isVerifying, setIsVerifying] = useState(false)
   const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null)
   const recaptchaContainerRef = useRef<HTMLDivElement>(null)
-
-  // Always auto-open the modal if not verified
-  useEffect(() => {
-    if (!isVerified) {
-      const timer = setTimeout(() => {
-        setOpen(true)
-      }, 500)
-
-      return () => clearTimeout(timer)
-    }
-  }, [isVerified, setOpen])
 
   // Handle World ID verification success
   const handleWorldIDSuccess = (result: ISuccessResult) => {
@@ -115,6 +152,8 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Render reCAPTCHA v2 Widget
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     if (isRecaptchaScriptLoaded && window.grecaptcha && window.grecaptcha.render && recaptchaContainerRef.current) {
       if (recaptchaWidgetId === null && recaptchaContainerRef.current.innerHTML === '') {
         console.log("Rendering reCAPTCHA v2 widget...")
@@ -139,7 +178,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   // Reset logic
   const handleResetClick = () => {
     reset()
-    if (window.grecaptcha && window.grecaptcha.reset && recaptchaWidgetId !== null) {
+    if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.reset && recaptchaWidgetId !== null) {
       console.log(`Resetting reCAPTCHA widget ID: ${recaptchaWidgetId}`)
       try {
         window.grecaptcha.reset(recaptchaWidgetId)
@@ -183,23 +222,30 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
               </div>
             )}
             <div className="flex flex-col space-y-3 items-center">
-              <IDKitWidget
-                app_id='app_b5f64c3ff3bafad4c5a686e03ace7e41'
-                action='wid-captcha'
-                verification_level={VerificationLevel.Orb}
-                onSuccess={handleWorldIDSuccess}
-                autoClose={true}
-              >
-                {() => (
-                  <div className="text-center text-sm text-gray-500">
-                    {(isVerifying || contextIsVerifying) ? (
-                      <><Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...</>
-                    ) : (
-                      "World ID verification will open automatically..."
-                    )}
-                  </div>
-                )}
-              </IDKitWidget>
+              {isClient && (
+                <IDKitWidget
+                  app_id={appId}
+                  action={actionId}
+                  verification_level={verificationLevel}
+                  onSuccess={handleWorldIDSuccess}
+                  autoClose={true}
+                  container_id={worldIdContainerId}
+                  show_modal={false}
+                  handleVerify={async () => {
+                    return Promise.resolve();
+                  }}
+                >
+                  {({ open }) => (
+                    <IDKitContent
+                      open={open}
+                      isVerifying={isVerifying}
+                      contextIsVerifying={contextIsVerifying}
+                      isVerified={isVerified}
+                      worldIdContainerId={worldIdContainerId}
+                    />
+                  )}
+                </IDKitWidget>
+              )}
 
               {/* Divider */}
               <div className="relative w-full flex items-center py-2">

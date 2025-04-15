@@ -4,7 +4,6 @@ import type React from "react"
 import { createContext, useContext, useState, useCallback, useEffect } from "react"
 import type { VerificationMethod, VerificationResult, WidCaptchaContextType } from "./types"
 
-// Define window interfaces for reCAPTCHA if not already global
 declare global {
   interface Window {
     grecaptcha?: {
@@ -18,7 +17,6 @@ interface ApiVerificationResponse {
   success: boolean
   message?: string
   error?: string
-  // Add any other expected fields from your API response if needed
 }
 
 const WidCaptchaContext = createContext<WidCaptchaContextType | undefined>(undefined)
@@ -28,7 +26,7 @@ export const WidCaptchaProvider: React.FC<{
   onVerificationComplete?: (result: VerificationResult) => void
   onError?: (error: Error) => void
   children: React.ReactNode
-}> = ({ recaptchaSiteKey, onVerificationComplete, onError, children }) => {
+}> = ({ onVerificationComplete, onError, children }) => {
   const [isVerified, setIsVerified] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("none")
@@ -44,7 +42,6 @@ export const WidCaptchaProvider: React.FC<{
     }
 
     const script = document.createElement("script")
-    // Use standard v2 script URL, async/defer can be helpful
     script.src = "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
     script.async = true
     script.defer = true
@@ -61,7 +58,6 @@ export const WidCaptchaProvider: React.FC<{
       ; (window as any).onloadCallback = () => {
         console.log("reCAPTCHA script loaded via onloadCallback.");
         setIsRecaptchaScriptLoaded(true);
-        // Clean up the global function after it's called
         delete (window as any).onloadCallback;
       };
 
@@ -75,7 +71,6 @@ export const WidCaptchaProvider: React.FC<{
         // Avoid removing if other components might need it, but for this isolated context it might be okay
         // document.head.removeChild(existingScript)
       }
-      // Clean up global callback if component unmounts before script loads
       if ((window as any).onloadCallback) {
         delete (window as any).onloadCallback;
       }
@@ -85,8 +80,7 @@ export const WidCaptchaProvider: React.FC<{
   const callVerificationApi = useCallback(async (payload: { idkit_response?: any; recaptcha_token?: string }) => {
     setIsVerifying(true)
     setError(null)
-    setVerificationMethod("none") // Reset method during verification
-    // setIsVerified(false) // Keep verification status until new result comes
+    setVerificationMethod("none")
 
     try {
       const response = await fetch("/api/verify-captcha", {
@@ -141,12 +135,6 @@ export const WidCaptchaProvider: React.FC<{
     setIsVerifying(false)
     setVerificationMethod("none")
     setError(null)
-    // Optionally, reset the reCAPTCHA widget itself if needed,
-    // This requires managing the widget ID, which adds complexity.
-    // The component rendering the widget might handle this better.
-    // if (window.grecaptcha && widgetIdRef.current !== null) {
-    //   window.grecaptcha.reset(widgetIdRef.current);
-    // }
   }, [])
 
   return (
@@ -156,14 +144,9 @@ export const WidCaptchaProvider: React.FC<{
         isVerifying,
         verificationMethod,
         error,
-        // Expose the function to call the API directly
-        // The v2 widget callback will call this
         verifyProof: callVerificationApi,
-        // Remove v3 specific trigger and ready state
-        // triggerRecaptchaVerification,
         reset,
-        // recaptchaReady,
-        isRecaptchaScriptLoaded, // Expose script loaded status
+        isRecaptchaScriptLoaded,
       }}
     >
       {children}

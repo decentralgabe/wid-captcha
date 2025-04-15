@@ -1,112 +1,160 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useCallback } from "react"
+import { createContext, useContext, useState, useCallback, useEffect } from "react"
 import type { VerificationMethod, VerificationResult, WidCaptchaContextType } from "./types"
+
+// Define window interfaces for reCAPTCHA if not already global
+declare global {
+  interface Window {
+    grecaptcha?: {
+      // Keep render for v2
+      render: (container: string | HTMLElement, parameters: object) => number
+      // Add reset for v2
+      reset?: (widgetId?: number) => void
+      // Remove v3 specifics
+      // ready: (callback: () => void) => void
+      // execute: (siteKey: string, options: { action: string }) => Promise<string>
+    }
+    // Add a global callback for explicit rendering if needed, or handle via script.onload
+    // onloadRecaptchaCallback?: () => void;
+  }
+}
+
+interface ApiVerificationResponse {
+  success: boolean
+  message?: string
+  error?: string
+  // Add any other expected fields from your API response if needed
+}
 
 const WidCaptchaContext = createContext<WidCaptchaContextType | undefined>(undefined)
 
 export const WidCaptchaProvider: React.FC<{
-  worldIdAppId: string
-  worldIdActionId: string
   recaptchaSiteKey: string
-  onVerificationComplete: (result: VerificationResult) => void
+  onVerificationComplete?: (result: VerificationResult) => void
   onError?: (error: Error) => void
   children: React.ReactNode
-}> = ({ worldIdAppId, worldIdActionId, recaptchaSiteKey, onVerificationComplete, onError, children }) => {
+}> = ({ recaptchaSiteKey, onVerificationComplete, onError, children }) => {
   const [isVerified, setIsVerified] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("none")
+  const [error, setError] = useState<Error | null>(null)
+  const [isRecaptchaScriptLoaded, setIsRecaptchaScriptLoaded] = useState(false)
 
-  const verify = useCallback(async (): Promise<VerificationResult> => {
-    setIsVerifying(true)
+  // Load reCAPTCHA script for v2
+  useEffect(() => {
+    // Check if script already exists or if window.grecaptcha is already populated
+    if (window.grecaptcha || document.querySelector('script[src="https://www.google.com/recaptcha/api.js"]')) {
+      setIsRecaptchaScriptLoaded(true);
+      return;
+    }
 
-    try {
-      // Attempt World ID verification first
-      try {
-        // Dynamic import to avoid SSR issues
-        const { IDKitWidget } = await import("@worldcoin/idkit")
-
-        // This is a simplified version - in reality, we would need to integrate
-        // IDKitWidget's verification process here
-        const worldIdResult = await new Promise((resolve, reject) => {
-          // Simulate World ID verification success for demonstration
-          // In a real implementation, this would use the actual IDKit flow
-          setTimeout(() => resolve({ proof: { some: "proof-data" } }), 500)
-        })
-
-        setVerificationMethod("world_id")
-        setIsVerified(true)
-        setIsVerifying(false)
-
-        const result = {
-          success: true,
-          method: "world_id" as VerificationMethod,
-          data: worldIdResult,
-        }
-
-        onVerificationComplete(result)
-        return result
-      } catch (worldIdError) {
-        console.warn("World ID verification failed, falling back to reCAPTCHA", worldIdError)
-
-        // Fall back to reCAPTCHA
-        try {
-          // Load reCAPTCHA script if not already loaded
-          if (!window.grecaptcha) {
-            await new Promise<void>((resolve, reject) => {
-              const script = document.createElement("script")
-              script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`
-              script.onload = () => resolve()
-              script.onerror = () => reject(new Error("Failed to load reCAPTCHA"))
-              document.head.appendChild(script)
-            })
-          }
-
-          // Execute reCAPTCHA
-          const token = await new Promise<string>((resolve, reject) => {
-            window.grecaptcha.ready(() => {
-              window.grecaptcha.execute(recaptchaSiteKey, { action: "submit" }).then(resolve).catch(reject)
-            })
-          })
-
-          setVerificationMethod("recaptcha")
-          setIsVerified(true)
-          setIsVerifying(false)
-
-          const result = {
-            success: true,
-            method: "recaptcha" as VerificationMethod,
-            data: token,
-          }
-
-          onVerificationComplete(result)
-          return result
-        } catch (recaptchaError) {
-          throw new Error(`Verification failed with both methods. Last error: ${recaptchaError.message}`)
-        }
-      }
-    } catch (error) {
-      setIsVerifying(false)
-      setIsVerified(false)
-      setVerificationMethod("none")
-
+    const script = document.createElement("script")
+    // Use standard v2 script URL, async/defer can be helpful
+    script.src = "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
+    script.async = true
+    script.defer = true
+    // script.onload = () => setIsRecaptchaScriptLoaded(true) // Handled by onloadCallback now
+    script.onerror = () => {
+      const loadError = new Error("Failed to load reCAPTCHA script")
+      setError(loadError)
       if (onError) {
-        onError(error instanceof Error ? error : new Error(String(error)))
+        onError(loadError)
       }
+      setIsRecaptchaScriptLoaded(false) // Ensure state reflects failure
+    }
 
-      return {
-        success: false,
-        method: "none",
-        data: null,
+      // Define the global callback function
+      ; (window as any).onloadCallback = () => {
+        console.log("reCAPTCHA script loaded via onloadCallback.");
+        setIsRecaptchaScriptLoaded(true);
+        // Clean up the global function after it's called
+        delete (window as any).onloadCallback;
+      };
+
+
+    document.head.appendChild(script)
+
+    // Cleanup function
+    return () => {
+      const existingScript = document.querySelector('script[src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"]')
+      if (existingScript) {
+        // Avoid removing if other components might need it, but for this isolated context it might be okay
+        // document.head.removeChild(existingScript)
+      }
+      // Clean up global callback if component unmounts before script loads
+      if ((window as any).onloadCallback) {
+        delete (window as any).onloadCallback;
       }
     }
-  }, [recaptchaSiteKey, onVerificationComplete, onError])
+  }, [onError]) // recaptchaSiteKey is not needed dependency for loading script itself
+
+  const callVerificationApi = useCallback(async (payload: { idkit_response?: any; recaptcha_token?: string }) => {
+    setIsVerifying(true)
+    setError(null)
+    setVerificationMethod("none") // Reset method during verification
+    // setIsVerified(false) // Keep verification status until new result comes
+
+    try {
+      const response = await fetch("/api/verify-captcha", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const result: ApiVerificationResponse = await response.json()
+
+      if (response.ok && result.success) {
+        const method: VerificationMethod = payload.idkit_response ? "world_id" : "recaptcha"
+        setVerificationMethod(method)
+        setIsVerified(true)
+        const verificationResult: VerificationResult = {
+          success: true,
+          method: method,
+          data: result.message || "Verification successful", // Or pass specific data if needed
+        }
+        if (onVerificationComplete) {
+          onVerificationComplete(verificationResult)
+        }
+        return verificationResult // Return result for potential direct use
+      } else {
+        throw new Error(result.error || "Verification failed")
+      }
+    } catch (err) {
+      const apiError = err instanceof Error ? err : new Error(String(err))
+      setError(apiError)
+      if (onError) {
+        onError(apiError)
+      }
+      const failureResult: VerificationResult = {
+        success: false,
+        method: "none",
+        data: apiError.message,
+      }
+      if (onVerificationComplete) {
+        // Notify completion even on failure
+        onVerificationComplete(failureResult)
+      }
+      return failureResult // Return failure result
+    } finally {
+      setIsVerifying(false)
+    }
+  }, [onVerificationComplete, onError])
 
   const reset = useCallback(() => {
     setIsVerified(false)
     setIsVerifying(false)
     setVerificationMethod("none")
+    setError(null)
+    // Optionally, reset the reCAPTCHA widget itself if needed,
+    // This requires managing the widget ID, which adds complexity.
+    // The component rendering the widget might handle this better.
+    // if (window.grecaptcha && widgetIdRef.current !== null) {
+    //   window.grecaptcha.reset(widgetIdRef.current);
+    // }
   }, [])
 
   return (
@@ -115,8 +163,15 @@ export const WidCaptchaProvider: React.FC<{
         isVerified,
         isVerifying,
         verificationMethod,
-        verify,
+        error,
+        // Expose the function to call the API directly
+        // The v2 widget callback will call this
+        verifyProof: callVerificationApi,
+        // Remove v3 specific trigger and ready state
+        // triggerRecaptchaVerification,
         reset,
+        // recaptchaReady,
+        isRecaptchaScriptLoaded, // Expose script loaded status
       }}
     >
       {children}
@@ -133,3 +188,28 @@ export const useWidCaptcha = (): WidCaptchaContextType => {
 
   return context
 }
+
+// Update the context type definition in ./types
+// This part needs manual adjustment in the actual types.ts file
+// Remove triggerRecaptchaVerification and recaptchaReady
+// Add isRecaptchaScriptLoaded
+/*
+Example adjustment for types.ts (DO NOT PUT THIS IN THE EDIT):
+
+declare module "./types" {
+  interface WidCaptchaContextType {
+    isVerified: boolean
+    isVerifying: boolean
+    verificationMethod: VerificationMethod
+    error: Error | null
+    verifyProof: (payload: { idkit_response?: any; recaptcha_token?: string }) => Promise<VerificationResult>
+    reset: () => void
+    isRecaptchaScriptLoaded: boolean // Added
+    // triggerRecaptchaVerification?: () => Promise<VerificationResult> // Removed
+    // recaptchaReady?: boolean // Removed
+  }
+}
+*/
+
+// Remove the outdated declare module block if it exists here
+// declare module "./types" { ... }

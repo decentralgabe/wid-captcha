@@ -5,108 +5,65 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { WidCaptcha } from "./wid-captcha"
 import type { VerificationResult } from "./types"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 
 export default function ExamplePage() {
   const router = useRouter()
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-  })
+  const [showRetry, setShowRetry] = useState(false);
+  const [captchaKey, setCaptchaKey] = useState(Date.now());
 
-  // Add useEffect to handle redirection after successful verification
   useEffect(() => {
     if (verificationResult?.success) {
-      // Redirect after a short delay to show the success state
-      const redirectTimer = setTimeout(() => {
-        router.push("/congratulations")
-      }, 1500)
-
-      return () => clearTimeout(redirectTimer)
+      router.push("/congratulations")
+    } else if (verificationResult?.success === false) {
+      setShowRetry(true);
     }
   }, [verificationResult, router])
 
   const handleVerificationComplete = (result: VerificationResult) => {
     console.log("Verification result:", result)
     setVerificationResult(result)
+    setShowRetry(!result.success);
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!verificationResult?.success) {
-      alert("Please complete the verification first")
-      return
-    }
+  const handleRetry = () => {
+    setVerificationResult(null);
+    setShowRetry(false);
+    setCaptchaKey(Date.now());
+  }
 
-    // Redirect to congratulations page
-    router.push("/congratulations")
+  const appId = process.env.NEXT_PUBLIC_WLD_APP_ID;
+  const actionId = process.env.NEXT_PUBLIC_WLD_ACTION_ID;
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+
+  if (!appId || !actionId || !recaptchaSiteKey) {
+    console.error("Required environment variables (NEXT_PUBLIC_WLD_APP_ID, NEXT_PUBLIC_WLD_ACTION_ID, NEXT_PUBLIC_RECAPTCHA_SITE_KEY) are not properly set.");
+    return <div className="p-4 text-red-600">Application is not configured correctly. Missing required IDs.</div>;
   }
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Contact Form</CardTitle>
-          <CardDescription>Send us a message, but verify you're human first</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </div>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <h1 className="text-2xl font-semibold mb-6">Please Verify You Are Human</h1>
 
-            <div className="my-6 border-t pt-4">
-              <h3 className="text-sm font-medium mb-2">Human Verification</h3>
-              <WidCaptcha
-                appId="app_id_xyz"
-                actionId="contact_form"
-                recaptchaSiteKey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" // reCAPTCHA test key
-                onVerificationComplete={handleVerificationComplete}
-              />
-            </div>
+      {!verificationResult && !showRetry && (
+        <WidCaptcha
+          key={captchaKey}
+          appId={appId}
+          actionId={actionId}
+          recaptchaSiteKey={recaptchaSiteKey}
+          onVerificationComplete={handleVerificationComplete}
+        />
+      )}
 
-            <Button type="submit" className="w-full" disabled={!verificationResult?.success}>
-              Submit
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter>
-          <div className="w-full text-xs text-gray-500">
-            {verificationResult?.success && (
-              <div className="text-green-600">
-                ✓ Verified via {verificationResult.method === "world_id" ? "World ID" : "reCAPTCHA"}
-              </div>
-            )}
-          </div>
-        </CardFooter>
-      </Card>
-
-      {verificationResult && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-md text-sm">
-          <h3 className="font-medium mb-2">Verification Details</h3>
-          <pre className="whitespace-pre-wrap overflow-auto p-2 bg-gray-100 rounded text-xs">
-            {JSON.stringify(verificationResult, null, 2)}
-          </pre>
+      {showRetry && (
+        <div className="mt-4 p-4 border border-red-300 bg-red-50 rounded-md text-center">
+          <p className="text-red-700 mb-3">Verification Failed. Please try again.</p>
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Try Again
+          </button>
         </div>
       )}
     </div>

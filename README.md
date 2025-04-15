@@ -1,169 +1,215 @@
 # World ID CAPTCHA Wrapper
 
-A React component and hook that provides human verification using World ID with reCAPTCHA as a fallback.
+A React component that provides human verification using World ID with reCAPTCHA as a fallback, powered by a Next.js API route for server-side verification.
 
 ## Features
 
-- Primary verification through World ID (privacy-preserving, Sybil-resistant identity verification)
-- Automatic fallback to reCAPTCHA if World ID verification fails
-- Easy integration with forms and other user flows
-- Fully customizable UI
-- TypeScript support
+- Primary verification through World ID (via `@worldcoin/idkit`)
+- Fallback verification using Google reCAPTCHA v3 (invisible).
+- Server-side verification of proofs/tokens via a Next.js API Route (`/api/verify-captcha`).
+- Configurable verification priority (World ID first or reCAPTCHA first) via environment variables.
+- Uses React Context (`WidCaptchaProvider`) for state management.
+- Provides a default UI component (`WidCaptcha`) using Shadcn UI components.
+- Allows for custom UI integration using the `useWidCaptcha` hook.
+- TypeScript support.
 
-## Installation
+## Setup
 
-\`\`\`bash
-npm install @worldcoin/idkit
-\`\`\`
+1.  **Install Dependencies:**
+    ```bash
+    npm install @worldcoin/idkit
+    # or
+    yarn add @worldcoin/idkit
+    # or
+    pnpm add @worldcoin/idkit
+    ```
+    Ensure you also have React, Next.js, and necessary Shadcn UI components installed.
+
+2.  **Environment Variables:**
+    *   Copy the `.env.example` file to `.env.local`:
+        ```bash
+        cp .env.example .env.local
+        ```
+    *   Fill in the values in `.env.local`:
+        *   `WLD_APP_ID`: Your World ID Application ID (find it on the [Worldcoin Developer Portal](https://developer.worldcoin.org/)). Must start with `app_`.
+        *   `WLD_ACTION_ID`: Your World ID Action ID (create one on the Developer Portal).
+        *   `RECAPTCHA_SECRET_KEY`: **Server-side Secret Key.** Your Google reCAPTCHA v3 Secret Key (find it on the [Google Cloud Console](https://console.cloud.google.com/security/recaptcha)). **Keep this secret!** Used only in the backend API route.
+        *   `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`: **Client-side Site Key.** Your Google reCAPTCHA v3 Site Key. **Important:** Prefix with `NEXT_PUBLIC_` to expose it to the browser for loading the script and executing the challenge.
+        *   `VERIFICATION_PRIORITY` (Optional): Set to `worldid` (default) or `recaptcha` to determine which method the backend tries first.
+
+3.  **API Route:** The server-side verification logic resides in `app/api/verify-captcha/route.ts`. Ensure this route is correctly set up in your Next.js project.
 
 ## Usage
 
-### Basic Component Usage
+1.  **Wrap your application (or relevant part) with `WidCaptchaProvider`:**
+    This provider manages the verification state and loads the necessary scripts.
 
-\`\`\`tsx
-import { WidCaptcha } from './path/to/wid-captcha';
+    ```tsx
+    // Example: In your layout.tsx or a specific page
+    import { WidCaptchaProvider } from "./path/to/wid-captcha-context";
 
-function MyForm() {
-  const handleVerificationComplete = (result) => {
-    console.log('Verification result:', result);
-    if (result.success) {
-      // Proceed with form submission
+    export default function RootLayout({ children }: { children: React.ReactNode }) {
+        // Use the *client-side* Site Key here, exposed via NEXT_PUBLIC_
+        const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+
+        if (!recaptchaSiteKey) {
+            console.error("Client-side NEXT_PUBLIC_RECAPTCHA_SITE_KEY is not set in environment variables.");
+            // Handle the error appropriately, maybe render an error message or fallback UI
+            return (
+                <html>
+                    <body>
+                         <div>Error: reCAPTCHA Site Key not configured for the client.</div>
+                         {children}
+                    </body>
+                </html>
+
+            );
+        }
+
+        const handleVerificationResult = (result) => {
+             console.log("Global Verification Result:", result);
+             // You can add global handling logic here if needed
+        };
+
+        const handleError = (error) => {
+             console.error("Global Verification Error:", error);
+        };
+
+        return (
+            <html lang="en">
+                <body>
+                    <WidCaptchaProvider
+                        recaptchaSiteKey={recaptchaSiteKey} // Pass the site key prop
+                        onVerificationComplete={handleVerificationResult}
+                        onError={handleError}
+                    >
+                        {children}
+                    </WidCaptchaProvider>
+                </body>
+            </html>
+        );
     }
-  };
+    ```
 
-  return (
-    <form>
-      {/* Your form fields */}
-      
-      <WidCaptcha
-        appId="YOUR_WORLD_ID_APP_ID"
-        actionId="YOUR_ACTION_ID"
-        recaptchaSiteKey="YOUR_RECAPTCHA_SITE_KEY"
-        onVerificationComplete={handleVerificationComplete}
-      />
-      
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
-\`\`\`
+2.  **Use the `WidCaptcha` component:**
+    Place the `WidCaptcha` component where you need the verification UI. You will likely need to expose `NEXT_PUBLIC_WLD_APP_ID` to the client as well.
 
-### Using the Hook
+    ```tsx
+    // Add to .env.local:
+    // NEXT_PUBLIC_WLD_APP_ID="app_..."
 
-\`\`\`tsx
-import { useWidCaptchaHook } from './path/to/use-wid-captcha-hook';
-import { Button } from '@/components/ui/button';
+    import { WidCaptcha } from './path/to/wid-captcha';
+    import { VerificationLevel } from "@worldcoin/idkit";
 
-function MyForm() {
-  const {
-    isVerified,
-    isLoading,
-    verify,
-    reset,
-    verificationMethod
-  } = useWidCaptchaHook({
-    worldIdAppId: 'YOUR_WORLD_ID_APP_ID',
-    worldIdActionId: 'YOUR_ACTION_ID',
-    recaptchaSiteKey: 'YOUR_RECAPTCHA_SITE_KEY',
-    onVerificationComplete: (result) => {
-      console.log('Verification result:', result);
+    function MyProtectedComponent() {
+        // Use NEXT_PUBLIC_ prefixed env vars for client-side access
+        const appId = process.env.NEXT_PUBLIC_WLD_APP_ID;
+        const actionId = "YOUR_ACTION_ID"; // This can remain server-side only if not needed directly in IDKitWidget props
+
+        // Check if required props are available
+        if (!appId) {
+           return <div>Error: World ID App ID not configured for the client (NEXT_PUBLIC_WLD_APP_ID).</div>;
+        }
+
+        return (
+            <div>
+                <h2>Verify to Continue</h2>
+                <WidCaptcha
+                    appId={appId}
+                    actionId={actionId}
+                    // Optional props:
+                    // signal="user-login"
+                    // signalDescription="Verify it's you logging in"
+                    // verificationLevel={VerificationLevel.Device} // For device auth
+                />
+                {/* Rest of your component - maybe enable based on verification status */}
+            </div>
+        );
     }
-  });
+    ```
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!isVerified) {
-      const result = await verify();
-      if (!result.success) {
-        return;
-      }
+3.  **Accessing Verification State (Custom UI):**
+    If you need more control or want to integrate the verification status into your own UI elements, use the `useWidCaptcha` hook within a component wrapped by the `WidCaptchaProvider`.
+
+    ```tsx
+    import { useWidCaptcha } from './path/to/wid-captcha-context';
+    import { Button } from '@/components/ui/button';
+    import { IDKitWidget } from "@worldcoin/idkit"; // Import if triggering manually
+
+    function CustomVerificationButton() {
+        const {
+            isVerified,
+            isVerifying,
+            error,
+            verifyProof,
+            triggerRecaptchaVerification,
+            reset,
+            recaptchaReady
+        } = useWidCaptcha();
+
+        const appId = process.env.NEXT_PUBLIC_WLD_APP_ID;
+        const actionId = "YOUR_ACTION_ID";
+
+        const handleWorldIdSuccess = (proof) => {
+             verifyProof({ idkit_response: proof });
+        };
+
+        if (!appId) return <div>Error: Client-side World ID config missing.</div>;
+
+        if (isVerified) {
+            return (
+                 <div>
+                     <p>You are verified!</p>
+                     <Button onClick={reset}>Reset Verification</Button>
+                 </div>
+            );
+        }
+
+        return (
+            <div>
+                {error && <p style={{ color: 'red' }}>Error: {error.message}</p>}
+
+                <IDKitWidget
+                     appId={appId}
+                     action={actionId}
+                     onSuccess={handleWorldIdSuccess}
+                     // Add other IDKit props as needed
+                >
+                  {({ open }) => <Button onClick={open} disabled={isVerifying}>Verify with World ID</Button>}
+                </IDKitWidget>
+
+                {recaptchaReady && triggerRecaptchaVerification && (
+                     <Button
+                        onClick={triggerRecaptchaVerification}
+                        disabled={isVerifying || !recaptchaReady}
+                        variant="outline"
+                        style={{ marginLeft: '10px' }}
+                     >
+                        {isVerifying ? 'Verifying...' : 'Verify with reCAPTCHA'}
+                     </Button>
+                )}
+            </div>
+        );
     }
-    
-    // Proceed with form submission
-  };
+    ```
 
-  return (
-    <form onSubmit={handleSubmit}>
-      {/* Your form fields */}
-      
-      <Button 
-        type="button" 
-        onClick={verify} 
-        disabled={isLoading || isVerified}
-      >
-        {isLoading ? 'Verifying...' : isVerified ? 'Verified ✓' : 'Verify Human'}
-      </Button>
-      
-      {isVerified && (
-        <div>
-          Verified via {verificationMethod === 'world_id' ? 'World ID' : 'reCAPTCHA'}
-        </div>
-      )}
-      
-      <Button type="submit" disabled={!isVerified}>
-        Submit
-      </Button>
-    </form>
-  );
-}
-\`\`\`
+## How it Works
 
-## Configuration
-
-### WidCaptcha Props
-
-| Prop | Type | Description |
-|------|------|-------------|
-| `appId` | string | Your World ID App ID |
-| `actionId` | string | Action ID for the verification |
-| `signalDescription` | string | Description of why verification is needed |
-| `recaptchaSiteKey` | string | Your Google reCAPTCHA site key |
-| `onSuccessWorldId` | function | Callback when World ID verification succeeds |
-| `onSuccessRecaptcha` | function | Callback when reCAPTCHA verification succeeds |
-| `onVerificationComplete` | function | Callback when any verification completes |
-| `onError` | function | Callback when an error occurs |
-| `children` | ReactNode | Optional custom UI |
-
-### useWidCaptchaHook Options
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `worldIdAppId` | string | Your World ID App ID |
-| `worldIdActionId` | string | Action ID for the verification |
-| `recaptchaSiteKey` | string | Your Google reCAPTCHA site key |
-| `autoLoadScripts` | boolean | Whether to automatically load external scripts |
-| `onVerificationComplete` | function | Callback when verification completes |
-
-## Advanced Usage
-
-### Custom UI
-
-You can provide your own UI to the `WidCaptcha` component:
-
-\`\`\`tsx
-<WidCaptcha
-  appId="YOUR_WORLD_ID_APP_ID"
-  actionId="YOUR_ACTION_ID"
-  recaptchaSiteKey="YOUR_RECAPTCHA_SITE_KEY"
-  onVerificationComplete={handleVerificationComplete}
->
-  {({ isVerified, isLoading, onVerify, error }) => (
-    <div>
-      {error && <div className="error">{error}</div>}
-      <button onClick={onVerify} disabled={isLoading || isVerified}>
-        {isLoading ? 'Verifying...' : isVerified ? 'Verified ✓' : 'Verify with World ID'}
-      </button>
-    </div>
-  )}
-</WidCaptcha>
-\`\`\`
-
-## Server Verification
-
-When implementing this in a real application, you'll need to verify the proof or token on your server:
-
-1. For World ID verification, follow the verification steps in the [World ID documentation](https://docs.world.org/world-id/reference/idkit)
-2. For reCAPTCHA, send the token to your server and verify it using Google's API
+1.  **Frontend (`WidCaptchaProvider`, `WidCaptcha`, `useWidCaptcha`):**
+    *   The `WidCaptchaProvider` is initialized with the **client-side Site Key** (`NEXT_PUBLIC_RECAPTCHA_SITE_KEY`). It loads the reCAPTCHA script using this key and manages the overall state.
+    *   The `WidCaptcha` component renders the UI, including the `@worldcoin/idkit` widget (`IDKitWidget`), using the client-exposed `NEXT_PUBLIC_WLD_APP_ID`.
+    *   When the user successfully verifies with World ID via `IDKitWidget`, the `onSuccess` callback receives a proof.
+    *   If the user clicks the reCAPTCHA button, the component uses the **client-side Site Key** (via the loaded `grecaptcha` object) to execute the challenge and get a token.
+    *   The component calls `verifyProof` (for World ID) or `triggerRecaptchaVerification` (for reCAPTCHA) from the context.
+2.  **Context (`wid-captcha-context.tsx`):**
+    *   These functions call `callVerificationApi`, sending either the World ID proof (`idkit_response`) or the reCAPTCHA token (`recaptcha_token`) to the backend API route.
+3.  **Backend API Route (`app/api/verify-captcha/route.ts`):**
+    *   Reads the necessary secrets (`WLD_APP_ID`, `WLD_ACTION_ID`, `RECAPTCHA_SECRET_KEY`) from server-side environment variables.
+    *   Receives the POST request with the proof or token.
+    *   Calls the appropriate verification API (Worldcoin or Google).
+    *   For reCAPTCHA verification, it sends the **server-side Secret Key** (`RECAPTCHA_SECRET_KEY`) and the received token to Google's API.
+    *   It returns a JSON response `{ success: boolean, message?: string, error?: string }` to the frontend.
+4.  **State Update:** The context updates its state based on the backend response, and the UI re-renders.
 
 ## License
 

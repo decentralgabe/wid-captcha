@@ -8,16 +8,9 @@ import type { VerificationMethod, VerificationResult, WidCaptchaContextType } fr
 declare global {
   interface Window {
     grecaptcha?: {
-      // Keep render for v2
       render: (container: string | HTMLElement, parameters: object) => number
-      // Add reset for v2
       reset?: (widgetId?: number) => void
-      // Remove v3 specifics
-      // ready: (callback: () => void) => void
-      // execute: (siteKey: string, options: { action: string }) => Promise<string>
     }
-    // Add a global callback for explicit rendering if needed, or handle via script.onload
-    // onloadRecaptchaCallback?: () => void;
   }
 }
 
@@ -55,7 +48,6 @@ export const WidCaptchaProvider: React.FC<{
     script.src = "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
     script.async = true
     script.defer = true
-    // script.onload = () => setIsRecaptchaScriptLoaded(true) // Handled by onloadCallback now
     script.onerror = () => {
       const loadError = new Error("Failed to load reCAPTCHA script")
       setError(loadError)
@@ -188,28 +180,3 @@ export const useWidCaptcha = (): WidCaptchaContextType => {
 
   return context
 }
-
-// Update the context type definition in ./types
-// This part needs manual adjustment in the actual types.ts file
-// Remove triggerRecaptchaVerification and recaptchaReady
-// Add isRecaptchaScriptLoaded
-/*
-Example adjustment for types.ts (DO NOT PUT THIS IN THE EDIT):
-
-declare module "./types" {
-  interface WidCaptchaContextType {
-    isVerified: boolean
-    isVerifying: boolean
-    verificationMethod: VerificationMethod
-    error: Error | null
-    verifyProof: (payload: { idkit_response?: any; recaptcha_token?: string }) => Promise<VerificationResult>
-    reset: () => void
-    isRecaptchaScriptLoaded: boolean // Added
-    // triggerRecaptchaVerification?: () => Promise<VerificationResult> // Removed
-    // recaptchaReady?: boolean // Removed
-  }
-}
-*/
-
-// Remove the outdated declare module block if it exists here
-// declare module "./types" { ... }

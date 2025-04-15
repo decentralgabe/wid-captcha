@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useEffect, useRef, useState, useCallback } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { useWidCaptcha } from "./wid-captcha-context"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { VerificationLevel, ISuccessResult, IDKitWidget } from "@worldcoin/idkit"
+import { VerificationLevel, ISuccessResult, IDKitWidget, useIDKit } from "@worldcoin/idkit"
 import { VerificationResult } from "./types"
 
 // Define IDKit global window interface
@@ -18,7 +18,7 @@ declare global {
   }
 }
 
-// Keep props needed for IDKitWidget and UI customization
+// Props with recaptcha included for future use
 interface WidCaptchaProps {
   appId: string
   actionId: string
@@ -40,7 +40,10 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   onVerificationComplete,
   children,
 }) => {
-  // Use the context hook to get state and actions
+  // Use the IDKit hook for programmatic control
+  const { setOpen } = useIDKit()
+
+  // Use the context hook to get state
   const {
     isVerified,
     isVerifying: contextIsVerifying,
@@ -51,105 +54,106 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   } = useWidCaptcha()
 
   // Local state for verification status
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null)
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null)
 
-  // Ensure app_id has the correct format (app_prefix)
-  const getFormattedAppId = (): string => {
-    // If appId already starts with 'app_', use it directly
-    if (appId.startsWith('app_')) {
-      return appId;
+  // Always auto-open the modal if not verified
+  useEffect(() => {
+    if (!isVerified) {
+      const timer = setTimeout(() => {
+        setOpen(true)
+      }, 500)
+
+      return () => clearTimeout(timer)
     }
-    // Otherwise, add the prefix
-    return `app_${appId}`;
-  };
+  }, [isVerified, setOpen])
 
   // Handle World ID verification success
   const handleWorldIDSuccess = (result: ISuccessResult) => {
-    console.log("World ID Success:", result);
+    console.log("World ID Success:", result)
     try {
-      setIsVerifying(true);
+      setIsVerifying(true)
       verifyProof({ idkit_response: result }).then(result => {
-        console.log("World ID verification result:", result);
+        console.log("World ID verification result:", result)
         if (onVerificationComplete) {
-          onVerificationComplete(result);
+          onVerificationComplete(result)
         }
-        setIsVerifying(false);
-      });
+        setIsVerifying(false)
+      })
     } catch (error) {
-      console.error("Error processing World ID proof:", error);
-      setIsVerifying(false);
+      console.error("Error processing World ID proof:", error)
+      setIsVerifying(false)
     }
-  };
+  }
 
-  // --- Callbacks for reCAPTCHA v2 Widget ---
+  // Callbacks for reCAPTCHA v2 Widget
   const handleRecaptchaSuccess = (token: string | null) => {
-    console.log("reCAPTCHA v2 Success:", token);
+    console.log("reCAPTCHA v2 Success:", token)
     if (token) {
       verifyProof({ recaptcha_token: token }).then(result => {
-        console.log("reCAPTCHA verification result:", result);
+        console.log("reCAPTCHA verification result:", result)
         if (onVerificationComplete) {
-          onVerificationComplete(result);
+          onVerificationComplete(result)
         }
-      });
+      })
     } else {
-      console.warn("reCAPTCHA v2 success callback received null token.");
-      reset();
+      console.warn("reCAPTCHA v2 success callback received null token.")
+      reset()
     }
-  };
+  }
 
   const handleRecaptchaExpired = () => {
-    console.warn("reCAPTCHA v2 Token Expired.");
-    reset();
-  };
+    console.warn("reCAPTCHA v2 Token Expired.")
+    reset()
+  }
 
   const handleRecaptchaError = (error: any) => {
-    console.error("reCAPTCHA v2 Error:", error);
-    reset();
-  };
+    console.error("reCAPTCHA v2 Error:", error)
+    reset()
+  }
 
-  // --- Render reCAPTCHA v2 Widget ---
+  // Render reCAPTCHA v2 Widget
   useEffect(() => {
     if (isRecaptchaScriptLoaded && window.grecaptcha && window.grecaptcha.render && recaptchaContainerRef.current) {
       if (recaptchaWidgetId === null && recaptchaContainerRef.current.innerHTML === '') {
-        console.log("Rendering reCAPTCHA v2 widget...");
+        console.log("Rendering reCAPTCHA v2 widget...")
         try {
           const widgetId = window.grecaptcha.render(recaptchaContainerRef.current, {
             sitekey: recaptchaSiteKey,
             callback: handleRecaptchaSuccess,
             'expired-callback': handleRecaptchaExpired,
             'error-callback': handleRecaptchaError,
-          });
-          setRecaptchaWidgetId(widgetId);
+          })
+          setRecaptchaWidgetId(widgetId)
         } catch (renderError) {
-          console.error("Failed to render reCAPTCHA v2 widget:", renderError);
-          handleRecaptchaError(renderError);
+          console.error("Failed to render reCAPTCHA v2 widget:", renderError)
+          handleRecaptchaError(renderError)
         }
       }
     }
 
-    return () => { };
-  }, [isRecaptchaScriptLoaded, recaptchaSiteKey, recaptchaWidgetId]);
+    return () => { }
+  }, [isRecaptchaScriptLoaded, recaptchaSiteKey, recaptchaWidgetId])
 
-  // --- Reset Logic ---
+  // Reset logic
   const handleResetClick = () => {
-    reset();
+    reset()
     if (window.grecaptcha && window.grecaptcha.reset && recaptchaWidgetId !== null) {
-      console.log(`Resetting reCAPTCHA widget ID: ${recaptchaWidgetId}`);
+      console.log(`Resetting reCAPTCHA widget ID: ${recaptchaWidgetId}`)
       try {
-        window.grecaptcha.reset(recaptchaWidgetId);
+        window.grecaptcha.reset(recaptchaWidgetId)
       } catch (resetError) {
-        console.error("Error resetting reCAPTCHA widget:", resetError);
+        console.error("Error resetting reCAPTCHA widget:", resetError)
       }
     }
-    setRecaptchaWidgetId(null);
+    setRecaptchaWidgetId(null)
     if (recaptchaContainerRef.current) {
-      recaptchaContainerRef.current.innerHTML = '';
+      recaptchaContainerRef.current.innerHTML = ''
     }
-  };
+  }
 
-  // Render custom children if provided, passing relevant state/functions
+  // Render custom children if provided
   if (children) {
     return React.cloneElement(children as React.ReactElement, {
       isVerified,
@@ -159,7 +163,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     } as any)
   }
 
-  // Default UI using Shadcn components
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -180,31 +183,21 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
               </div>
             )}
             <div className="flex flex-col space-y-3 items-center">
-              {/* World ID Component */}
               <IDKitWidget
-                app_id={getFormattedAppId() as `app_${string}`}
-                action={actionId}
-                signal={signal}
-                verification_level={verificationLevel}
+                app_id='app_b5f64c3ff3bafad4c5a686e03ace7e41'
+                action='wid-captcha'
+                verification_level={VerificationLevel.Orb}
                 onSuccess={handleWorldIDSuccess}
-                handleVerify={async (response) => {
-                  console.log("IDKit handleVerify called with response:", response);
-                  return;
-                }}
                 autoClose={true}
               >
-                {({ open }) => (
-                  <Button
-                    onClick={open}
-                    disabled={isVerifying || contextIsVerifying}
-                    className="w-full"
-                  >
+                {() => (
+                  <div className="text-center text-sm text-gray-500">
                     {(isVerifying || contextIsVerifying) ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
+                      <><Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...</>
                     ) : (
-                      "Verify with World ID"
+                      "World ID verification will open automatically..."
                     )}
-                  </Button>
+                  </div>
                 )}
               </IDKitWidget>
 

@@ -14,12 +14,35 @@ import "./app/marquee.css";
 export default function ExamplePage() {
   const router = useRouter()
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
-  const [showRetry, setShowRetry] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [captchaKey, setCaptchaKey] = useState(Date.now());
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationStartTime, setVerificationStartTime] = useState<number | null>(null);
 
+  // Minimum time (in ms) that the verification pending state should be shown
+  const MIN_VERIFICATION_DISPLAY_TIME = 2500;
+
+  // Check localStorage for verification status on initial load
   useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      // Check if this is a page refresh using modern Navigation Timing API with fallback
+      const isPageRefresh = detectPageRefresh();
+
+      if (isPageRefresh) {
+        // Clear verification status on page refresh
+        localStorage.removeItem('verificationStatus');
+        setShowSuccess(false);
+      } else {
+        // Only restore from localStorage if not a refresh
+        const savedVerificationStatus = localStorage.getItem('verificationStatus');
+        if (savedVerificationStatus === 'success') {
+          setShowSuccess(true);
+        }
+      }
+    }
+
     const handleResize = () => {
       setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
@@ -28,27 +51,53 @@ export default function ExamplePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (verificationResult?.success) {
-      setShowCelebration(true);
-      setShowRetry(false);
-    } else if (verificationResult?.success === false) {
-      setShowRetry(true);
-      setShowCelebration(false);
-    }
-  }, [verificationResult])
-
   const handleVerificationComplete = (result: VerificationResult) => {
-    console.log("Verification result:", result)
-    setVerificationResult(result)
-  }
+    console.log("Verification result:", result);
+
+    // Calculate how long verification has been in progress
+    if (verificationStartTime) {
+      const elapsedTime = Date.now() - verificationStartTime;
+      const remainingTime = Math.max(0, MIN_VERIFICATION_DISPLAY_TIME - elapsedTime);
+
+      // If we haven't shown the pending state for the minimum time, delay the completion
+      if (remainingTime > 0) {
+        setTimeout(() => {
+          finishVerification(result);
+        }, remainingTime);
+      } else {
+        finishVerification(result);
+      }
+    } else {
+      finishVerification(result);
+    }
+  };
+
+  const finishVerification = (result: VerificationResult) => {
+    setIsVerifying(false);
+    setVerificationStartTime(null);
+    setVerificationResult(result);
+
+    if (result.success) {
+      setShowSuccess(true);
+      // Save verification status to localStorage
+      localStorage.setItem('verificationStatus', 'success');
+    }
+  };
+
+  const handleVerificationStart = () => {
+    setIsVerifying(true);
+    setVerificationStartTime(Date.now());
+  };
 
   const handleRetry = () => {
     setVerificationResult(null);
-    setShowRetry(false);
-    setShowCelebration(false);
-    setCaptchaKey(Date.now());
-  }
+    setShowSuccess(false);
+    setIsVerifying(false);
+    setVerificationStartTime(null);
+    // Remove verification status from localStorage
+    localStorage.removeItem('verificationStatus');
+    setCaptchaKey(Date.now()); // This forces the captcha component to fully re-render
+  };
 
   const appId = process.env.NEXT_PUBLIC_WLD_APP_ID;
   const actionId = process.env.NEXT_PUBLIC_WLD_ACTION_ID;
@@ -59,21 +108,74 @@ export default function ExamplePage() {
     return <div className="p-4 text-red-600">Application is not configured correctly. Missing required IDs.</div>;
   }
 
+  // Pre-load the marquee styles for immediate display
+  useEffect(() => {
+    if (showSuccess) {
+      // Force marquee animation to start immediately
+      const marqueeElement = document.querySelector('.marquee');
+      if (marqueeElement) {
+        marqueeElement.classList.add('animate-now');
+      }
+    }
+  }, [showSuccess]);
+
+  // Function to detect if the current page load is a refresh
+  const detectPageRefresh = () => {
+    // Modern method using Navigation Timing Level 2 API
+    if (window.performance && window.performance.getEntriesByType) {
+      const navigationEntries = window.performance.getEntriesByType('navigation');
+      if (navigationEntries.length > 0) {
+        // Use type assertion with any to avoid type errors
+        const navEntry = navigationEntries[0] as any;
+        return navEntry.type === 'reload';
+      }
+    }
+
+    // Fallback for older browsers
+    if (window.performance && window.performance.navigation) {
+      return window.performance.navigation.type === window.performance.navigation.TYPE_RELOAD;
+    }
+
+    // Default fallback - can't detect, assume not a refresh
+    return false;
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      {!showCelebration && <h1 className="text-2xl font-semibold mb-6">Please Verify You Are Human</h1>}
+      <h1 className={`text-2xl font-semibold mb-6 ${showSuccess ? 'text-green-600' : ''}`}>
+        {!showSuccess ? (isVerifying ? "Verifying..." : "Please Verify You Are Human") : "Verification Complete"}
+      </h1>
 
-      {!verificationResult && !showRetry && !showCelebration && (
-        <WidCaptcha
-          key={captchaKey}
-          appId={appId as `app_${string}`}
-          actionId={actionId}
-          recaptchaSiteKey={recaptchaSiteKey}
-          onVerificationComplete={handleVerificationComplete}
+      {showSuccess && windowSize.width > 0 && windowSize.height > 0 && (
+        <ReactConfetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={500}
+          tweenDuration={10000}
         />
       )}
 
-      {showRetry && !showCelebration && (
+      {showSuccess && (
+        <div className="marquee w-full overflow-hidden mb-4 animate-now">
+          <div className="marquee-content">
+            <span className="text-xl font-semibold">🎉 Verification Successful!! 🎉</span>
+          </div>
+        </div>
+      )}
+
+      {/* Always show the captcha component */}
+      <WidCaptcha
+        key={captchaKey}
+        appId={appId as `app_${string}`}
+        actionId={actionId}
+        recaptchaSiteKey={recaptchaSiteKey}
+        onVerificationComplete={handleVerificationComplete}
+        onVerificationStart={handleVerificationStart}
+        hideSuccessMessage={true}
+      />
+
+      {verificationResult?.success === false && (
         <div className="mt-4 p-4 border border-red-300 bg-red-50 rounded-md text-center">
           <p className="text-red-700 mb-3">Verification Failed. Please try again.</p>
           <button
@@ -81,31 +183,6 @@ export default function ExamplePage() {
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Try Again
-          </button>
-        </div>
-      )}
-
-      {showCelebration && (
-        <div className="flex flex-col items-center justify-center text-center">
-          {windowSize.width > 0 && windowSize.height > 0 && (
-            <ReactConfetti
-              width={windowSize.width}
-              height={windowSize.height}
-              recycle={false}
-              numberOfPieces={500}
-              tweenDuration={10000}
-            />
-          )}
-          <div className="marquee w-full overflow-hidden my-4">
-            <span className="text-xl font-semibold">🎉 Verification Successful! Welcome! 🎉 Verification Successful! Welcome! 🎉</span>
-          </div>
-          <h2 className="text-3xl font-bold text-green-600 mt-8 mb-4">Verification Successful!</h2>
-          <p className="text-lg">Thank you for verifying.</p>
-          <button
-            onClick={handleRetry}
-            className="mt-6 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Verify Again
           </button>
         </div>
       )}

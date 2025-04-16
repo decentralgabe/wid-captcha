@@ -27,9 +27,12 @@ interface WidCaptchaProps {
   signalDescription?: string
   verificationLevel?: VerificationLevel
   onVerificationComplete?: (result: VerificationResult) => void
+  onVerificationStart?: () => void
   children?: React.ReactNode
   /** Container ID where the World ID QR code should be rendered */
   containerId?: string
+  /** Hide the internal success message when true */
+  hideSuccessMessage?: boolean
 }
 
 export const WidCaptcha: React.FC<WidCaptchaProps> = ({
@@ -39,14 +42,19 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   signalDescription = "Verify You're a Human",
   verificationLevel = VerificationLevel.Orb,
   onVerificationComplete,
+  onVerificationStart,
   children,
   containerId,
+  hideSuccessMessage = false,
 }) => {
   // Use default container ID if not provided
   const worldIdContainerId = containerId || `worldid-container-${appId}`;
 
   // Client-side rendering check
   const [isClient, setIsClient] = useState(false);
+  // Track when the captcha is clicked
+  const [captchaClicked, setCaptchaClicked] = useState(false);
+
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -67,6 +75,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   // Handle World ID verification success (after handleVerify completes)
   const handleWorldIDSuccess = (result: ISuccessResult) => {
     console.log("World ID Success (raw proof):", result)
+    setCaptchaClicked(true);
 
     if (onVerificationComplete) {
       onVerificationComplete({ success: true, method: "world_id", data: "Verification flow complete." })
@@ -77,11 +86,16 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   const handleWorldIDVerify = async (result: ISuccessResult) => {
     console.log("World ID handleVerify triggered")
     console.log("Raw IDKit Result:", JSON.stringify(result, null, 2))
+    setCaptchaClicked(true);
+
     if (!result) {
       console.error("handleWorldIDVerify received null or undefined result object.")
       throw new Error("Verification result object is missing.");
     }
     try {
+      if (onVerificationStart) {
+        onVerificationStart();
+      }
       const verificationResult = await verifyProof({ idkit_response: result })
       console.log("World ID verification result from verifyProof:", verificationResult)
       if (!verificationResult.success) {
@@ -96,7 +110,12 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   // Callbacks for reCAPTCHA v2 Widget
   const handleRecaptchaSuccess = (token: string | null) => {
     console.log("reCAPTCHA v2 Success:", token)
+    setCaptchaClicked(true);
+
     if (token) {
+      if (onVerificationStart) {
+        onVerificationStart();
+      }
       verifyProof({ recaptcha_token: token }).then(result => {
         console.log("reCAPTCHA verification result:", result)
         if (onVerificationComplete) {
@@ -147,6 +166,8 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   // Reset logic
   const handleResetClick = () => {
     reset()
+    setCaptchaClicked(false);
+
     if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.reset && recaptchaWidgetId !== null) {
       console.log(`Resetting reCAPTCHA widget ID: ${recaptchaWidgetId}`)
       try {
@@ -178,7 +199,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
         <CardDescription>{signalDescription}</CardDescription>
       </CardHeader>
       <CardContent>
-        {isVerified ? (
+        {isVerified && !hideSuccessMessage ? (
           <div className="flex flex-col items-center justify-center p-4 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-md space-y-2">
             <span>✓ Verification successful</span>
             <Button variant="outline" size="sm" onClick={handleResetClick}>Verify Again</Button>
@@ -192,7 +213,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
             )}
             <div className="flex flex-col space-y-3 items-center">
               {/* Ensure container div and IDKitWidget only render client-side */}
-              {isClient && (
+              {isClient && (!isVerified || hideSuccessMessage) && !captchaClicked && (
                 <>
                   {/* Container where the World ID QR code will be rendered by IDKitWidget */}
                   {/* Render container only when not verifying */}
@@ -223,8 +244,18 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
               {/* Conditionally render Verifying state */}
               {contextIsVerifying && ( // Separate block for verifying state
-                <div className="text-center text-sm text-gray-500 h-[350px] flex flex-col justify-center items-center">
-                  <Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...
+                <div className="text-center text-sm text-gray-500 h-[350px] flex flex-col justify-center items-center bg-gray-50 rounded-md p-6 border border-gray-200">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 text-blue-500" />
+                  <p className="text-base font-medium text-gray-700">Verification pending...</p>
+                  <p className="text-xs text-gray-500 mt-2">Please wait while we verify your proof</p>
+                </div>
+              )}
+
+              {/* Show message when captcha is clicked but not yet verified */}
+              {captchaClicked && !contextIsVerifying && !isVerified && (
+                <div className="text-center text-sm text-gray-500 h-[100px] flex flex-col justify-center items-center">
+                  <p className="text-base font-medium text-gray-700">Captcha clicked</p>
+                  <p className="text-xs text-gray-500 mt-2">Verification in progress...</p>
                 </div>
               )}
 

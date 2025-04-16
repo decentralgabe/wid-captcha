@@ -39,8 +39,6 @@ async function verifyWorldID(idkitResponse: IDKitResponse): Promise<[boolean, st
         signal: '', // Add signal from frontend (must match IDKitWidget prop)
     };
 
-    console.log("Sending payload to World ID API:", JSON.stringify(payloadToSend, null, 2)); // Log payload being sent
-
     try {
         const verifyRes = await fetch(WORLD_ID_VERIFY_URL, {
             method: 'POST',
@@ -105,16 +103,11 @@ async function verifyRecaptcha(token: string): Promise<[boolean, string]> {
 
 // --- Verification Endpoint --- //
 export async function POST(request: NextRequest) {
-    console.log("--- /api/verify-captcha Request Received ---"); // Log request start
     try {
         const data = await request.json();
-        console.log("Received raw data:", JSON.stringify(data, null, 2)); // Log raw data
 
         const idkitResponse = data.idkit_response as IDKitResponse | undefined;
         const recaptchaToken = data.recaptcha_token as string | undefined;
-
-        console.log("Extracted idkit_response:", idkitResponse ? JSON.stringify(idkitResponse, null, 2) : 'undefined'); // Log extracted IDKit response
-        console.log("Extracted recaptcha_token:", recaptchaToken || 'undefined'); // Log extracted reCAPTCHA token
 
         let primaryVerifier: (payload: any) => Promise<[boolean, string]>;
         let fallbackVerifier: (payload: any) => Promise<[boolean, string]>;

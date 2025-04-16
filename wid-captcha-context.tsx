@@ -56,7 +56,6 @@ export const WidCaptchaProvider: React.FC<{
 
       // Define the global callback function
       ; (window as any).onloadCallback = () => {
-        console.log("reCAPTCHA script loaded via onloadCallback.");
         setIsRecaptchaScriptLoaded(true);
         delete (window as any).onloadCallback;
       };
@@ -69,7 +68,6 @@ export const WidCaptchaProvider: React.FC<{
       const existingScript = document.querySelector('script[src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"]')
       if (existingScript) {
         // Avoid removing if other components might need it, but for this isolated context it might be okay
-        // document.head.removeChild(existingScript)
       }
       if ((window as any).onloadCallback) {
         delete (window as any).onloadCallback;

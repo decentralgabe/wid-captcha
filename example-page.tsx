@@ -52,8 +52,6 @@ export default function ExamplePage() {
   }, []);
 
   const handleVerificationComplete = (result: VerificationResult) => {
-    console.log("Verification result:", result);
-
     // Calculate how long verification has been in progress
     if (verificationStartTime) {
       const elapsedTime = Date.now() - verificationStartTime;

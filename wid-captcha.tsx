@@ -74,7 +74,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Handle World ID verification success (after handleVerify completes)
   const handleWorldIDSuccess = (result: ISuccessResult) => {
-    console.log("World ID Success (raw proof):", result)
     setCaptchaClicked(true);
 
     if (onVerificationComplete) {
@@ -84,8 +83,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Handle World ID verification by calling the backend
   const handleWorldIDVerify = async (result: ISuccessResult) => {
-    console.log("World ID handleVerify triggered")
-    console.log("Raw IDKit Result:", JSON.stringify(result, null, 2))
     setCaptchaClicked(true);
 
     if (!result) {
@@ -97,7 +94,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
         onVerificationStart();
       }
       const verificationResult = await verifyProof({ idkit_response: result })
-      console.log("World ID verification result from verifyProof:", verificationResult)
       if (!verificationResult.success) {
         throw new Error(verificationResult.data || "Cloud verification failed.")
       }
@@ -109,7 +105,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Callbacks for reCAPTCHA v2 Widget
   const handleRecaptchaSuccess = (token: string | null) => {
-    console.log("reCAPTCHA v2 Success:", token)
     setCaptchaClicked(true);
 
     if (token) {
@@ -117,7 +112,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
         onVerificationStart();
       }
       verifyProof({ recaptcha_token: token }).then(result => {
-        console.log("reCAPTCHA verification result:", result)
         if (onVerificationComplete) {
           onVerificationComplete(result)
         }
@@ -144,7 +138,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
     if (isRecaptchaScriptLoaded && window.grecaptcha && window.grecaptcha.render && recaptchaContainerRef.current) {
       if (recaptchaWidgetId === null && recaptchaContainerRef.current.innerHTML === '') {
-        console.log("Rendering reCAPTCHA v2 widget...")
         try {
           const widgetId = window.grecaptcha.render(recaptchaContainerRef.current, {
             sitekey: recaptchaSiteKey,
@@ -169,7 +162,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     setCaptchaClicked(false);
 
     if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.reset && recaptchaWidgetId !== null) {
-      console.log(`Resetting reCAPTCHA widget ID: ${recaptchaWidgetId}`)
       try {
         window.grecaptcha.reset(recaptchaWidgetId)
       } catch (resetError) {

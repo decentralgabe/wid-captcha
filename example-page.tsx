@@ -60,13 +60,7 @@ export default function ExamplePage() {
       const remainingTime = Math.max(0, MIN_VERIFICATION_DISPLAY_TIME - elapsedTime);
 
       // If we haven't shown the pending state for the minimum time, delay the completion
-      if (remainingTime > 0) {
-        setTimeout(() => {
-          finishVerification(result);
-        }, remainingTime);
-      } else {
-        finishVerification(result);
-      }
+      finishVerification(result);
     } else {
       finishVerification(result);
     }
@@ -107,17 +101,6 @@ export default function ExamplePage() {
     console.error("Required environment variables (NEXT_PUBLIC_WLD_APP_ID, NEXT_PUBLIC_WLD_ACTION_ID, NEXT_PUBLIC_RECAPTCHA_SITE_KEY) are not properly set.");
     return <div className="p-4 text-red-600">Application is not configured correctly. Missing required IDs.</div>;
   }
-
-  // Pre-load the marquee styles for immediate display
-  useEffect(() => {
-    if (showSuccess) {
-      // Force marquee animation to start immediately
-      const marqueeElement = document.querySelector('.marquee');
-      if (marqueeElement) {
-        marqueeElement.classList.add('animate-now');
-      }
-    }
-  }, [showSuccess]);
 
   // Function to detect if the current page load is a refresh
   const detectPageRefresh = () => {

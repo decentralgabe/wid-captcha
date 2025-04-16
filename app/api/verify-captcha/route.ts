@@ -32,14 +32,14 @@ async function verifyWorldID(idkitResponse: IDKitResponse): Promise<[boolean, st
         return [false, 'World ID environment variables not configured on the server.'];
     }
 
-    const payload = {
-        merkle_root: idkitResponse.merkle_root,
-        nullifier_hash: idkitResponse.nullifier_hash,
-        proof: idkitResponse.proof,
-        credential_type: idkitResponse.credential_type,
-        action: WLD_ACTION_ID,
-        signal: '', // Optional: Add signal if used in frontend IDKit
+    // Prepare the payload by adding action and signal (if used) to the received proof object
+    const payloadToSend = {
+        ...idkitResponse, // Spread the received proof fields (merkle_root, nullifier_hash, proof, credential_type)
+        action: WLD_ACTION_ID, // Add the action ID from env vars
+        signal: '', // Add signal from frontend (must match IDKitWidget prop)
     };
+
+    console.log("Sending payload to World ID API:", JSON.stringify(payloadToSend, null, 2)); // Log payload being sent
 
     try {
         const verifyRes = await fetch(WORLD_ID_VERIFY_URL, {
@@ -47,7 +47,7 @@ async function verifyWorldID(idkitResponse: IDKitResponse): Promise<[boolean, st
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(payloadToSend), // Send the combined object
         });
 
         if (verifyRes.ok) {
@@ -80,7 +80,6 @@ async function verifyRecaptcha(token: string): Promise<[boolean, string]> {
     const params = new URLSearchParams({
         secret: RECAPTCHA_SECRET_KEY,
         response: token,
-        // remoteip: request.ip // Optional: Include user's IP - requires access to request object differently in Edge Runtime
     });
 
     try {
@@ -106,10 +105,16 @@ async function verifyRecaptcha(token: string): Promise<[boolean, string]> {
 
 // --- Verification Endpoint --- //
 export async function POST(request: NextRequest) {
+    console.log("--- /api/verify-captcha Request Received ---"); // Log request start
     try {
         const data = await request.json();
+        console.log("Received raw data:", JSON.stringify(data, null, 2)); // Log raw data
+
         const idkitResponse = data.idkit_response as IDKitResponse | undefined;
         const recaptchaToken = data.recaptcha_token as string | undefined;
+
+        console.log("Extracted idkit_response:", idkitResponse ? JSON.stringify(idkitResponse, null, 2) : 'undefined'); // Log extracted IDKit response
+        console.log("Extracted recaptcha_token:", recaptchaToken || 'undefined'); // Log extracted reCAPTCHA token
 
         let primaryVerifier: (payload: any) => Promise<[boolean, string]>;
         let fallbackVerifier: (payload: any) => Promise<[boolean, string]>;

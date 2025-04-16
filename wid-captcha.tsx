@@ -51,7 +51,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     setIsClient(true);
   }, []);
 
-  // Use the context hook to get state
   const {
     isVerified,
     isVerifying: contextIsVerifying,
@@ -62,25 +61,35 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   } = useWidCaptcha()
 
   // Local state for verification status
-  const [isVerifying, setIsVerifying] = useState(false)
   const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null)
   const recaptchaContainerRef = useRef<HTMLDivElement>(null)
 
-  // Handle World ID verification success
+  // Handle World ID verification success (after handleVerify completes)
   const handleWorldIDSuccess = (result: ISuccessResult) => {
-    console.log("World ID Success:", result)
+    console.log("World ID Success (raw proof):", result)
+
+    if (onVerificationComplete) {
+      onVerificationComplete({ success: true, method: "world_id", data: "Verification flow complete." })
+    }
+  }
+
+  // Handle World ID verification by calling the backend
+  const handleWorldIDVerify = async (result: ISuccessResult) => {
+    console.log("World ID handleVerify triggered")
+    console.log("Raw IDKit Result:", JSON.stringify(result, null, 2))
+    if (!result) {
+      console.error("handleWorldIDVerify received null or undefined result object.")
+      throw new Error("Verification result object is missing.");
+    }
     try {
-      setIsVerifying(true)
-      verifyProof({ idkit_response: result }).then(result => {
-        console.log("World ID verification result:", result)
-        if (onVerificationComplete) {
-          onVerificationComplete(result)
-        }
-        setIsVerifying(false)
-      })
+      const verificationResult = await verifyProof({ idkit_response: result })
+      console.log("World ID verification result from verifyProof:", verificationResult)
+      if (!verificationResult.success) {
+        throw new Error(verificationResult.data || "Cloud verification failed.")
+      }
     } catch (error) {
-      console.error("Error processing World ID proof:", error)
-      setIsVerifying(false)
+      console.error("Error during World ID verifyProof:", error)
+      throw error;
     }
   }
 
@@ -156,7 +165,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   if (children) {
     return React.cloneElement(children as React.ReactElement, {
       isVerified,
-      isVerifying,
+      isVerifying: contextIsVerifying,
       error,
       reset: handleResetClick,
     } as any)
@@ -182,34 +191,40 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
               </div>
             )}
             <div className="flex flex-col space-y-3 items-center">
+              {/* Ensure container div and IDKitWidget only render client-side */}
               {isClient && (
-                <IDKitWidget
-                  app_id={appId}
-                  action={actionId}
-                  verification_level={verificationLevel}
-                  onSuccess={handleWorldIDSuccess}
-                  autoClose={true}
-                  container_id={worldIdContainerId}
-                  show_modal={false}
-                  handleVerify={async () => {
-                    return Promise.resolve();
-                  }}
-                />
+                <>
+                  {/* Container where the World ID QR code will be rendered by IDKitWidget */}
+                  {/* Render container only when not verifying */}
+                  {!contextIsVerifying && (
+                    <div
+                      id={worldIdContainerId}
+                      className="flex justify-center items-center mb-2 min-h-[300px]" // Added min-height to prevent collapse
+                    >
+                      {/* Placeholder removed, IDKitWidget will handle rendering */}
+                    </div>
+                  )}
+
+                  {/* Render IDKitWidget if container exists (implicitly via isClient) */}
+                  {/* Pass handleVerify and onSuccess */}
+                  <IDKitWidget
+                    app_id={appId}
+                    action={actionId}
+                    verification_level={verificationLevel}
+                    onSuccess={handleWorldIDSuccess} // Redirects on success
+                    autoClose={true}
+                    container_id={worldIdContainerId} // Reference the container
+                    show_modal={false} // Use inline QR code
+                    handleVerify={handleWorldIDVerify} // Calls verifyProof
+                    signal={''}
+                  />
+                </>
               )}
 
-              {/* Conditionally render Verifying state or QR Code container */}
-              {(isVerifying || contextIsVerifying) ? (
+              {/* Conditionally render Verifying state */}
+              {contextIsVerifying && ( // Separate block for verifying state
                 <div className="text-center text-sm text-gray-500 h-[350px] flex flex-col justify-center items-center">
                   <Loader2 className="mx-auto h-4 w-4 animate-spin mb-2" /> Verifying...
-                </div>
-              ) : (
-                /* Container where the World ID QR code will be rendered by IDKitWidget */
-                <div
-                  id={worldIdContainerId}
-                  className="flex justify-center items-center mb-2"
-                >
-                  {/* Optional: Placeholder content while IDKit initializes */}
-                  {!isClient && <p className="text-xs text-gray-400">Initializing World ID...</p>}
                 </div>
               )}
 

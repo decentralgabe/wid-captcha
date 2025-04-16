@@ -17,146 +17,202 @@ interface ApiVerificationResponse {
   success: boolean
   message?: string
   error?: string
+  method?: VerificationMethod
 }
 
-const WidCaptchaContext = createContext<WidCaptchaContextType | undefined>(undefined)
+interface InternalWidCaptchaContextType extends WidCaptchaContextType {
+  appId: string | null
+  actionId: string | null
+}
+
+const WidCaptchaContext = createContext<InternalWidCaptchaContextType | undefined>(undefined)
 
 export const WidCaptchaProvider: React.FC<{
+  appId: string
+  actionId: string
   recaptchaSiteKey: string
   onVerificationComplete?: (result: VerificationResult) => void
   onError?: (error: Error) => void
   children: React.ReactNode
-}> = ({ onVerificationComplete, onError, children }) => {
-  const [isVerified, setIsVerified] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("none")
-  const [error, setError] = useState<Error | null>(null)
-  const [isRecaptchaScriptLoaded, setIsRecaptchaScriptLoaded] = useState(false)
+}> = ({
+  appId,
+  actionId,
+  recaptchaSiteKey,
+  onVerificationComplete,
+  onError,
+  children,
+}) => {
+    const [isVerified, setIsVerified] = useState(false)
+    const [isVerifying, setIsVerifying] = useState(false)
+    const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("none")
+    const [error, setError] = useState<Error | null>(null)
+    const [isRecaptchaScriptLoaded, setIsRecaptchaScriptLoaded] = useState(false)
 
-  // Load reCAPTCHA script for v2
-  useEffect(() => {
-    // Check if script already exists or if window.grecaptcha is already populated
-    if (window.grecaptcha || document.querySelector('script[src="https://www.google.com/recaptcha/api.js"]')) {
-      setIsRecaptchaScriptLoaded(true);
-      return;
-    }
-
-    const script = document.createElement("script")
-    script.src = "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
-    script.async = true
-    script.defer = true
-    script.onerror = () => {
-      const loadError = new Error("Failed to load reCAPTCHA script")
-      setError(loadError)
-      if (onError) {
-        onError(loadError)
+    useEffect(() => {
+      if (process.env.NODE_ENV === 'development') {
+        if (!appId) {
+          console.error(
+            '[WidCaptchaProvider] Missing required prop: "appId". Get this from the Worldcoin Developer Portal.'
+          )
+        } else if (typeof appId !== 'string' || !appId.startsWith('app_')) {
+          console.warn(
+            `[WidCaptchaProvider] Invalid prop format: "appId" should be a string starting with "app_". Received: ${appId}`
+          )
+        }
+        if (!actionId) {
+          console.error(
+            '[WidCaptchaProvider] Missing required prop: "actionId". Get this from the Worldcoin Developer Portal.'
+          )
+        }
+        if (!recaptchaSiteKey) {
+          console.error(
+            '[WidCaptchaProvider] Missing required prop: "recaptchaSiteKey" (Client-side Site Key). Get this from the Google Cloud Console.'
+          )
+        }
       }
-      setIsRecaptchaScriptLoaded(false) // Ensure state reflects failure
-    }
+    }, [appId, actionId, recaptchaSiteKey])
 
-      // Define the global callback function
-      ; (window as any).onloadCallback = () => {
+    useEffect(() => {
+      if (window.grecaptcha || document.querySelector('script[src="https://www.google.com/recaptcha/api.js"]')) {
         setIsRecaptchaScriptLoaded(true);
-        delete (window as any).onloadCallback;
-      };
-
-
-    document.head.appendChild(script)
-
-    // Cleanup function
-    return () => {
-      const existingScript = document.querySelector('script[src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"]')
-      if (existingScript) {
-        // Avoid removing if other components might need it, but for this isolated context it might be okay
+        return;
       }
-      if ((window as any).onloadCallback) {
-        delete (window as any).onloadCallback;
+
+      const script = document.createElement("script")
+      script.src = "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit"
+      script.async = true
+      script.defer = true
+      script.onerror = () => {
+        const loadError = new Error("Failed to load reCAPTCHA script")
+        setError(loadError)
+        if (onError) {
+          onError(loadError)
+        }
+        setIsRecaptchaScriptLoaded(false)
       }
-    }
-  }, [onError]) // recaptchaSiteKey is not needed dependency for loading script itself
 
-  const callVerificationApi = useCallback(async (payload: { idkit_response?: any; recaptcha_token?: string }) => {
-    setIsVerifying(true)
-    setError(null)
-    setVerificationMethod("none")
+        ; (window as any).onloadCallback = () => {
+          setIsRecaptchaScriptLoaded(true);
+          delete (window as any).onloadCallback;
+        };
 
-    try {
-      const response = await fetch("/api/verify-captcha", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
+      document.head.appendChild(script)
 
-      const result: ApiVerificationResponse = await response.json()
+      return () => {
+        if ((window as any).onloadCallback) {
+          delete (window as any).onloadCallback;
+        }
+      }
+    }, [onError])
 
-      if (response.ok && result.success) {
-        const method: VerificationMethod = payload.idkit_response ? "world_id" : "recaptcha"
-        setVerificationMethod(method)
-        setIsVerified(true)
-        const verificationResult: VerificationResult = {
-          success: true,
-          method: method,
-          data: result.message || "Verification successful", // Or pass specific data if needed
+    const callVerificationApi = useCallback(async (payload: { idkit_response?: any; recaptcha_token?: string }) => {
+      setIsVerifying(true)
+      setError(null)
+
+      if (!payload.idkit_response && !payload.recaptcha_token) {
+        const err = new Error("No verification payload provided to callVerificationApi");
+        setError(err);
+        if (onError) onError(err);
+        setIsVerifying(false);
+        return { success: false, method: "none", data: err.message } as VerificationResult;
+      }
+
+      try {
+        const response = await fetch("/api/verify-captcha", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...payload,
+            idkit_response: payload.idkit_response ? {
+              ...payload.idkit_response,
+              signal: payload.idkit_response.signal ?? '',
+            } : undefined,
+          }),
+        })
+
+        const result: ApiVerificationResponse = await response.json()
+
+        if (response.ok && result.success) {
+          const method: VerificationMethod = result.method || (payload.idkit_response ? "world_id" : "recaptcha");
+          setVerificationMethod(method)
+          setIsVerified(true)
+          const verificationResult: VerificationResult = {
+            success: true,
+            method: method,
+            data: result.message || "Verification successful",
+          }
+          if (onVerificationComplete) {
+            onVerificationComplete(verificationResult)
+          }
+          return verificationResult
+        } else {
+          throw new Error(result.error || result.message || `Verification failed with status ${response.status}`)
+        }
+      } catch (err) {
+        const apiError = err instanceof Error ? err : new Error(String(err))
+        setError(apiError)
+        if (onError) {
+          onError(apiError)
+        }
+        setVerificationMethod("none")
+        setIsVerified(false)
+
+        const failureResult: VerificationResult = {
+          success: false,
+          method: "none",
+          data: apiError.message,
         }
         if (onVerificationComplete) {
-          onVerificationComplete(verificationResult)
+          onVerificationComplete(failureResult)
         }
-        return verificationResult // Return result for potential direct use
-      } else {
-        throw new Error(result.error || "Verification failed")
+        return failureResult
+      } finally {
+        setIsVerifying(false)
       }
-    } catch (err) {
-      const apiError = err instanceof Error ? err : new Error(String(err))
-      setError(apiError)
-      if (onError) {
-        onError(apiError)
-      }
-      const failureResult: VerificationResult = {
-        success: false,
-        method: "none",
-        data: apiError.message,
-      }
-      if (onVerificationComplete) {
-        // Notify completion even on failure
-        onVerificationComplete(failureResult)
-      }
-      return failureResult // Return failure result
-    } finally {
+    }, [onVerificationComplete, onError])
+
+    const reset = useCallback(() => {
+      setIsVerified(false)
       setIsVerifying(false)
-    }
-  }, [onVerificationComplete, onError])
+      setVerificationMethod("none")
+      setError(null)
+    }, [])
 
-  const reset = useCallback(() => {
-    setIsVerified(false)
-    setIsVerifying(false)
-    setVerificationMethod("none")
-    setError(null)
-  }, [])
+    const contextValue: InternalWidCaptchaContextType = {
+      isVerified,
+      isVerifying,
+      verificationMethod,
+      error,
+      verifyProof: callVerificationApi,
+      reset,
+      isRecaptchaScriptLoaded,
+      appId: appId ?? null,
+      actionId: actionId ?? null,
+    };
 
-  return (
-    <WidCaptchaContext.Provider
-      value={{
-        isVerified,
-        isVerifying,
-        verificationMethod,
-        error,
-        verifyProof: callVerificationApi,
-        reset,
-        isRecaptchaScriptLoaded,
-      }}
-    >
-      {children}
-    </WidCaptchaContext.Provider>
-  )
-}
+    return (
+      <WidCaptchaContext.Provider value={contextValue}>
+        {children}
+      </WidCaptchaContext.Provider>
+    )
+  }
 
-export const useWidCaptcha = (): WidCaptchaContextType => {
+export const useWidCaptcha = (): InternalWidCaptchaContextType => {
   const context = useContext(WidCaptchaContext)
 
   if (context === undefined) {
     throw new Error("useWidCaptcha must be used within a WidCaptchaProvider")
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    if (!context.appId) {
+      console.error("[useWidCaptcha] Error: appId is missing from WidCaptchaProvider context. Ensure it's passed as a prop to the provider.");
+    }
+    if (!context.actionId) {
+      console.error("[useWidCaptcha] Error: actionId is missing from WidCaptchaProvider context. Ensure it's passed as a prop to the provider.");
+    }
   }
 
   return context

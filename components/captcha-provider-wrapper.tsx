@@ -4,11 +4,18 @@ import React from 'react';
 import { WidCaptchaProvider } from '@/wid-captcha-context'; // Adjust path if needed
 
 interface CaptchaProviderWrapperProps {
+    appId: string;
+    actionId: string;
     recaptchaSiteKey: string;
     children: React.ReactNode;
 }
 
-export function CaptchaProviderWrapper({ recaptchaSiteKey, children }: CaptchaProviderWrapperProps) {
+export function CaptchaProviderWrapper({
+    appId,
+    actionId,
+    recaptchaSiteKey,
+    children
+}: CaptchaProviderWrapperProps) {
 
     // Define handlers *inside* the Client Component
     const handleVerificationResult = (result: any) => {
@@ -23,6 +30,8 @@ export function CaptchaProviderWrapper({ recaptchaSiteKey, children }: CaptchaPr
 
     return (
         <WidCaptchaProvider
+            appId={appId}
+            actionId={actionId}
             recaptchaSiteKey={recaptchaSiteKey}
             onVerificationComplete={handleVerificationResult}
             onError={handleError}

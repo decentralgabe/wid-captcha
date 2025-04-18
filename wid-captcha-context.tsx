@@ -170,6 +170,11 @@ export const WidCaptchaProvider: React.FC<{
     const callVerificationApi = useCallback(async (payload: { idkit_response?: any; captcha_token?: string }) => {
       setIsVerifying(true)
       setError(null)
+      console.log("callVerificationApi called with payload:",
+        {
+          hasIdkitResponse: !!payload.idkit_response,
+          hasCaptchaToken: !!payload.captcha_token
+        });
 
       if (!payload.idkit_response && !payload.captcha_token) {
         const err = new Error("No verification payload (idkit_response or captcha_token) provided to callVerificationApi");
@@ -196,6 +201,7 @@ export const WidCaptchaProvider: React.FC<{
         })
 
         const result: ApiVerificationResponse = await response.json()
+        console.log("API verification result:", result);
 
         if (response.ok && result.success) {
           // Determine method from API response if provided, otherwise infer
@@ -208,6 +214,7 @@ export const WidCaptchaProvider: React.FC<{
             data: result.message || "Verification successful",
             details: result.details, // Pass along details
           }
+          console.log("Verification successful! Calling onVerificationComplete with:", verificationResult);
           if (onVerificationComplete) {
             onVerificationComplete(verificationResult)
           }
@@ -232,6 +239,7 @@ export const WidCaptchaProvider: React.FC<{
           method: "none", // Or potentially the attempted method if known?
           data: apiError.message,
         }
+        console.error("Verification failed with error:", apiError);
         if (onVerificationComplete) {
           onVerificationComplete(failureResult)
         }

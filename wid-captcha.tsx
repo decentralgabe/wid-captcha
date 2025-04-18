@@ -91,6 +91,21 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   const captchaContainerRef = useRef<HTMLDivElement>(null)
   const [localError, setLocalError] = useState<string | null>(null); // For widget-specific errors
 
+  // Monitor isVerified changes from context
+  useEffect(() => {
+    console.log("wid-captcha: isVerified changed:", isVerified);
+    // If verification becomes successful and we have a completion callback
+    if (isVerified && onVerificationComplete && !contextIsVerifying) {
+      console.log("wid-captcha: Calling onVerificationComplete due to isVerified change");
+      const successResult: VerificationResult = {
+        success: true,
+        method: captchaProvider,
+        data: "Verification successful"
+      };
+      onVerificationComplete(successResult);
+    }
+  }, [isVerified, contextIsVerifying, onVerificationComplete, captchaProvider]);
+
   // Handle World ID verification success (after handleVerify completes)
   const handleWorldIDSuccess = (result: ISuccessResult) => {
     setCaptchaClicked(true);
@@ -109,11 +124,17 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     }
     try {
       if (onVerificationStart) {
+        console.log("Calling onVerificationStart from handleWorldIDVerify");
         onVerificationStart();
       }
+      console.log("Calling verifyProof with World ID data");
       const verificationResult = await verifyProof({ idkit_response: result })
+      console.log("World ID verification result:", verificationResult);
       if (!verificationResult.success) {
         setLocalError(verificationResult.data || "World ID cloud verification failed.");
+      } else if (onVerificationComplete) {
+        console.log("World ID verification successful, calling onVerificationComplete with result");
+        onVerificationComplete(verificationResult);
       }
     } catch (error) {
       console.error("Error during World ID verifyProof call:", error)
@@ -124,15 +145,22 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Success callback for both reCAPTCHA and hCaptcha
   const handleCaptchaSuccess = useCallback((token: string | null) => {
+    console.log(`${captchaProvider} success callback with token:`, !!token);
     setCaptchaClicked(true);
     setLocalError(null);
     if (token) {
       if (onVerificationStart) {
+        console.log(`Calling onVerificationStart from ${captchaProvider} success handler`);
         onVerificationStart();
       }
+      console.log(`Calling verifyProof with ${captchaProvider} token`);
       verifyProof({ captcha_token: token }).then(result => {
+        console.log(`${captchaProvider} verification result:`, result);
         if (!result.success) {
           setLocalError(result.data || `${captchaProvider} verification failed.`);
+        } else if (onVerificationComplete) {
+          console.log(`${captchaProvider} verification successful, calling onVerificationComplete with result`);
+          onVerificationComplete(result);
         }
       })
     } else {
@@ -140,7 +168,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
       setLocalError(`${captchaProvider} verification failed: No token received.`);
       resetContextState();
     }
-  }, [captchaProvider, onVerificationStart, verifyProof, resetContextState]);
+  }, [captchaProvider, onVerificationStart, verifyProof, resetContextState, onVerificationComplete]);
 
   // Expiry callback for both
   const handleCaptchaExpired = useCallback(() => {

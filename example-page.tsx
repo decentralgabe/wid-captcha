@@ -5,11 +5,13 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import ReactConfetti from 'react-confetti';
 import { WidCaptcha } from "./wid-captcha"
+import { useWidCaptcha } from "./wid-captcha-context"
 import type { VerificationResult } from "./types"
 import Image from "next/image";
 import Link from "next/link";
-import "./app/globals.css";
-import "./app/marquee.css";
+import { Confetti } from "./confetti";
+import "@/app/globals.css";
+import "@/app/marquee.css";
 
 export default function ExamplePage() {
   const router = useRouter()
@@ -20,8 +22,29 @@ export default function ExamplePage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStartTime, setVerificationStartTime] = useState<number | null>(null);
 
+  // Get isVerified state from context for redundancy
+  const { isVerified } = useWidCaptcha();
+
   // Minimum time (in ms) that the verification pending state should be shown
   const MIN_VERIFICATION_DISPLAY_TIME = 2500;
+
+  // Synchronize with the context's isVerified state
+  useEffect(() => {
+    console.log("Context isVerified changed:", isVerified);
+    if (isVerified) {
+      console.log("Setting showSuccess=true based on context isVerified");
+      setShowSuccess(true);
+      // Save verification status to localStorage
+      localStorage.setItem('verificationStatus', 'success');
+      // Ensure window dimensions are set
+      if (windowSize.width === 0 || windowSize.height === 0) {
+        setWindowSize({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      }
+    }
+  }, [isVerified, windowSize.width, windowSize.height]);
 
   // Function to detect if the current page load is a refresh
   const detectPageRefresh = () => {
@@ -65,36 +88,72 @@ export default function ExamplePage() {
     }
 
     const handleResize = () => {
-      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      console.log(`Window dimensions set: ${width}x${height}`);
+      setWindowSize({ width, height });
     };
+
+    // Initial sizing
     handleResize();
+
+    // Add event listener
     window.addEventListener('resize', handleResize);
+
+    // Cleanup
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleVerificationComplete = (result: VerificationResult) => {
+    console.log("handleVerificationComplete called with result:", result);
     // Calculate how long verification has been in progress
     if (verificationStartTime) {
       const elapsedTime = Date.now() - verificationStartTime;
       const remainingTime = Math.max(0, MIN_VERIFICATION_DISPLAY_TIME - elapsedTime);
 
       // If we haven't shown the pending state for the minimum time, delay the completion
-      finishVerification(result);
+      console.log(`Delaying verification completion by ${remainingTime}ms`);
+      setTimeout(() => {
+        finishVerification(result);
+      }, remainingTime);
     } else {
+      console.log("No verification start time recorded, finishing immediately");
       finishVerification(result);
     }
   };
 
   const finishVerification = (result: VerificationResult) => {
+    console.log("finishVerification called with result:", result);
     setIsVerifying(false);
     setVerificationStartTime(null);
     setVerificationResult(result);
 
     if (result.success) {
+      console.log("Setting showSuccess to TRUE");
       setShowSuccess(true);
       // Save verification status to localStorage
       localStorage.setItem('verificationStatus', 'success');
+      // Ensure window dimensions are set
+      if (windowSize.width === 0 || windowSize.height === 0) {
+        console.log("Window size was zero, updating dimensions");
+        setWindowSize({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      }
+    } else {
+      console.log("Setting showSuccess to FALSE");
+      setShowSuccess(false);
     }
+
+    // Force a re-render after a short delay to ensure state updates are applied
+    setTimeout(() => {
+      console.log("Current state after timeout:", {
+        showSuccess: showSuccess,
+        isVerifying,
+        windowSize
+      });
+    }, 100);
   };
 
   const handleVerificationStart = () => {
@@ -143,28 +202,57 @@ export default function ExamplePage() {
     </div>;
   }
 
+  // Force window size update when success is shown
+  useEffect(() => {
+    if (showSuccess && (windowSize.width === 0 || windowSize.height === 0)) {
+      console.log("Forcing window size update for confetti");
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    }
+  }, [showSuccess, windowSize]);
+
+  console.log("Render state:", { showSuccess, windowSize, isVerifying });
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <h1 className={`text-2xl font-semibold mb-6 ${showSuccess ? 'text-green-600' : ''}`}>
         {!showSuccess ? (isVerifying ? "Verifying..." : "Please Verify You Are Human") : "Verification Complete"}
       </h1>
 
-      {showSuccess && windowSize.width > 0 && windowSize.height > 0 && (
-        <ReactConfetti
-          width={windowSize.width}
-          height={windowSize.height}
-          recycle={false}
-          numberOfPieces={500}
-          tweenDuration={10000}
-        />
+      {/* Debug info */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="text-xs text-gray-500 mb-2">
+          showSuccess: {String(showSuccess)},
+          windowSize: {windowSize.width}x{windowSize.height}
+        </div>
       )}
 
+      {/* Show both react-confetti and our custom confetti for maximum effect */}
       {showSuccess && (
-        <div className="marquee w-full overflow-hidden mb-4 animate-now">
-          <div className="marquee-content">
-            <span className="text-xl font-semibold">🎉 Verification Successful!! 🎉</span>
+        <>
+          {/* Use built-in ReactConfetti when window dimensions are available */}
+          {windowSize.width > 0 && windowSize.height > 0 && (
+            <ReactConfetti
+              width={windowSize.width}
+              height={windowSize.height}
+              recycle={false}
+              numberOfPieces={500}
+              tweenDuration={10000}
+            />
+          )}
+
+          {/* Also use our custom Confetti component as a fallback */}
+          <Confetti />
+
+          {/* Marquee banner */}
+          <div className="marquee w-full overflow-hidden mb-4 animate-now">
+            <div className="marquee-content">
+              <span className="text-xl font-semibold">🎉 Verification Successful!! 🎉</span>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Always show the captcha component */}

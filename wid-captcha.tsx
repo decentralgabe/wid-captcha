@@ -159,46 +159,92 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Render reCAPTCHA v2 Widget
   useEffect(() => {
-    if (!isClient || !isCaptchaScriptLoaded || !captchaContainerRef.current) return;
+    console.log("Captcha render effect running with state:", {
+      isClient,
+      isCaptchaScriptLoaded,
+      captchaContainerRefExists: !!captchaContainerRef.current,
+      captchaWidgetId,
+      containerNotEmpty: captchaContainerRef.current?.innerHTML !== '',
+      grecaptchaExists: !!window.grecaptcha,
+      grecaptchaRenderExists: !!(window.grecaptcha && window.grecaptcha.render)
+    });
 
-    // Ensure container is empty before rendering
-    if (captchaWidgetId !== null || captchaContainerRef.current.innerHTML !== '') {
+    if (!isClient || !isCaptchaScriptLoaded || !captchaContainerRef.current) {
+      console.log("Not rendering captcha: conditions not met");
       return;
     }
 
-    let widgetId: string | number | null = null;
+    // Clear container before rendering
+    if (captchaWidgetId === null && captchaContainerRef.current.innerHTML !== '') {
+      console.log("Clearing container before rendering captcha");
+      captchaContainerRef.current.innerHTML = '';
+    }
 
-    try {
-      if (captchaProvider === 'recaptcha' && window.grecaptcha && recaptchaSiteKey) {
-        console.log("Rendering reCAPTCHA...");
-        widgetId = window.grecaptcha.render(captchaContainerRef.current, {
-          sitekey: recaptchaSiteKey,
-          callback: handleCaptchaSuccess,
-          'expired-callback': handleCaptchaExpired,
-          'error-callback': handleCaptchaError,
-        });
-      } else if (captchaProvider === 'hcaptcha' && window.hcaptcha && hcaptchaSiteKey) {
-        console.log("Rendering hCaptcha...");
-        widgetId = window.hcaptcha.render(captchaContainerRef.current, {
-          sitekey: hcaptchaSiteKey,
-          callback: handleCaptchaSuccess,
-          'expired-callback': handleCaptchaExpired,
-          'error-callback': handleCaptchaError,
-        });
-      } else {
-        console.warn(`Captcha provider ${captchaProvider} selected, but script/siteKey not ready.`);
+    // Skip if widget ID already set
+    if (captchaWidgetId !== null) {
+      console.log("Not rendering captcha: widget ID already set");
+      return;
+    }
+
+    // Create function to render captcha
+    const renderCaptcha = () => {
+      let widgetId: string | number | null = null;
+
+      try {
+        if (captchaProvider === 'recaptcha' && window.grecaptcha && window.grecaptcha.render && recaptchaSiteKey) {
+          console.log("Rendering reCAPTCHA with site key:", recaptchaSiteKey);
+          widgetId = window.grecaptcha.render(captchaContainerRef.current!, {
+            sitekey: recaptchaSiteKey,
+            callback: handleCaptchaSuccess,
+            'expired-callback': handleCaptchaExpired,
+            'error-callback': handleCaptchaError,
+          });
+        } else if (captchaProvider === 'hcaptcha' && window.hcaptcha && hcaptchaSiteKey) {
+          console.log("Rendering hCaptcha with site key:", hcaptchaSiteKey);
+          widgetId = window.hcaptcha.render(captchaContainerRef.current!, {
+            sitekey: hcaptchaSiteKey,
+            callback: handleCaptchaSuccess,
+            'expired-callback': handleCaptchaExpired,
+            'error-callback': handleCaptchaError,
+          });
+        } else {
+          console.warn(`Captcha provider ${captchaProvider} selected, but dependencies not ready:`, {
+            provider: captchaProvider,
+            grecaptchaExists: !!window.grecaptcha,
+            grecaptchaRenderExists: !!(window.grecaptcha && window.grecaptcha.render),
+            hcaptchaExists: !!window.hcaptcha,
+            recaptchaSiteKey: !!recaptchaSiteKey,
+            hcaptchaSiteKey: !!hcaptchaSiteKey
+          });
+          return false;
+        }
+
+        if (widgetId !== null) {
+          setCaptchaWidgetId(widgetId);
+          console.log(`${captchaProvider} widget rendered successfully with ID:`, widgetId);
+          return true;
+        } else {
+          console.error(`Failed to get widget ID for ${captchaProvider}.`);
+          setLocalError(`Failed to render ${captchaProvider} widget.`);
+          return false;
+        }
+      } catch (renderError) {
+        console.error(`Error rendering ${captchaProvider} widget:`, renderError);
+        handleCaptchaError(renderError);
+        return false;
       }
+    };
 
-      if (widgetId !== null) {
-        setCaptchaWidgetId(widgetId);
-        console.log(`${captchaProvider} widget rendered with ID: ${widgetId}`);
-      } else {
-        setLocalError(`Failed to render ${captchaProvider} widget.`);
-      }
+    // Try immediate render
+    if (!renderCaptcha()) {
+      // If immediate render fails, try again after a delay
+      console.log("First render attempt failed, trying again in 500ms");
+      const retryTimeout = setTimeout(() => {
+        console.log("Retrying captcha render...");
+        renderCaptcha();
+      }, 500);
 
-    } catch (renderError) {
-      console.error(`Failed to render ${captchaProvider} widget:`, renderError);
-      handleCaptchaError(renderError);
+      return () => clearTimeout(retryTimeout);
     }
 
   }, [
@@ -359,9 +405,21 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
                 {/* CAPTCHA Widget Placeholder */}
                 {(captchaProvider === 'recaptcha' || captchaProvider === 'hcaptcha') && (
-                  <div ref={captchaContainerRef} className="captcha-widget-container min-h-[78px] flex justify-center items-center">
-                    {!captchaWidgetId && isCaptchaScriptLoaded && <p className="text-xs text-gray-400">Loading {captchaProvider}...</p>}
-                  </div>
+                  <>
+                    {/* Loading Messages (Outside the captcha container) - Hide when widget ID exists */}
+                    {!captchaWidgetId && captchaContainerRef.current?.childElementCount === 0 && (
+                      <div className="text-center py-2 mb-2">
+                        {isCaptchaScriptLoaded ? (
+                          <p className="text-xs text-gray-400">Loading {captchaProvider}...</p>
+                        ) : (
+                          <p className="text-xs text-gray-400">Waiting for {captchaProvider} script to load...</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Empty container for captcha widget */}
+                    <div ref={captchaContainerRef} className="captcha-widget-container min-h-[78px] flex justify-center items-center"></div>
+                  </>
                 )}
               </div>
             )}

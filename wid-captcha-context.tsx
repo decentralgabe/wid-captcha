@@ -76,8 +76,13 @@ export const WidCaptchaProvider: React.FC<{
 
     // Load the correct CAPTCHA script
     useEffect(() => {
+      console.log("Script loading effect running. CAPTCHA_PROVIDER:", CAPTCHA_PROVIDER);
+
       const loadScript = (src: string, checkLoaded: () => boolean, id: string) => {
+        console.log(`Attempting to load ${id} script from ${src}`);
+
         if (checkLoaded() || document.getElementById(id)) {
+          console.log(`${id} already loaded or script tag exists`);
           setIsCaptchaScriptLoaded(true);
           return null; // Already loaded or loading
         }
@@ -88,6 +93,7 @@ export const WidCaptchaProvider: React.FC<{
         script.defer = true
         script.onerror = () => {
           const loadError = new Error(`Failed to load ${CAPTCHA_PROVIDER} script from ${src}`)
+          console.error("Script load error:", loadError);
           setError(loadError)
           if (onError) {
             onError(loadError)
@@ -101,7 +107,9 @@ export const WidCaptchaProvider: React.FC<{
         // Specific onload handling
         if (CAPTCHA_PROVIDER === 'recaptcha') {
           // Use explicit onload callback for reCAPTCHA
+          console.log("Setting up onloadCallback for reCAPTCHA");
           window.onloadCallback = () => {
+            console.log("reCAPTCHA onloadCallback fired");
             setIsCaptchaScriptLoaded(true);
             delete window.onloadCallback;
           };
@@ -109,10 +117,12 @@ export const WidCaptchaProvider: React.FC<{
           // hCaptcha loads globally, set loaded state once script tag added
           // Verification of actual API readiness happens in the component using it
           script.onload = () => {
+            console.log("hCaptcha script onload fired");
             setIsCaptchaScriptLoaded(true);
           };
         }
 
+        console.log(`Appending ${id} script to document head`);
         document.head.appendChild(script);
         return script; // Return the script element for cleanup
       };
@@ -120,15 +130,25 @@ export const WidCaptchaProvider: React.FC<{
       let scriptElement: HTMLScriptElement | null = null;
 
       if (CAPTCHA_PROVIDER === 'recaptcha') {
+        console.log("Loading reCAPTCHA script with key:", RECAPTCHA_SITE_KEY ? "Key provided" : "No key provided");
         scriptElement = loadScript(
           "https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit",
-          () => !!window.grecaptcha,
+          () => {
+            const recaptchaReady = !!window.grecaptcha;
+            console.log("Check if grecaptcha already available:", recaptchaReady);
+            return recaptchaReady;
+          },
           "recaptcha-script"
         );
       } else if (CAPTCHA_PROVIDER === 'hcaptcha') {
+        console.log("Loading hCaptcha script with key:", HCAPTCHA_SITE_KEY ? "Key provided" : "No key provided");
         scriptElement = loadScript(
           "https://js.hcaptcha.com/1/api.js",
-          () => !!window.hcaptcha,
+          () => {
+            const hcaptchaReady = !!window.hcaptcha;
+            console.log("Check if hcaptcha already available:", hcaptchaReady);
+            return hcaptchaReady;
+          },
           "hcaptcha-script"
         );
       }

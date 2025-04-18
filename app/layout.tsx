@@ -20,18 +20,41 @@ export default function RootLayout({
 }>) {
   // Get the client-side Site Key from environment variables
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
+  const captchaProvider = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || 'recaptcha') as 'recaptcha' | 'hcaptcha';
   const worldIdAppId = process.env.NEXT_PUBLIC_WLD_APP_ID;
   const worldIdActionId = process.env.NEXT_PUBLIC_WLD_ACTION_ID;
 
-  // Basic error handling if the key is missing
-  if (!recaptchaSiteKey || !worldIdAppId || !worldIdActionId) {
-    console.error("Client-side environment variables missing.");
+  // Debug environment variables
+  console.log("Layout Environment Variables:", {
+    "NEXT_PUBLIC_WLD_APP_ID": worldIdAppId || "missing",
+    "NEXT_PUBLIC_WLD_ACTION_ID": worldIdActionId || "missing",
+    "NEXT_PUBLIC_RECAPTCHA_SITE_KEY": recaptchaSiteKey || "missing",
+    "NEXT_PUBLIC_HCAPTCHA_SITE_KEY": hcaptchaSiteKey || "missing",
+    "NEXT_PUBLIC_CAPTCHA_PROVIDER": captchaProvider,
+  });
+
+  // Determine which captcha key to check based on provider
+  const hasCaptchaKey = captchaProvider === 'recaptcha' ? !!recaptchaSiteKey : !!hcaptchaSiteKey;
+
+  // Basic error handling if required keys are missing
+  if (!hasCaptchaKey || !worldIdAppId || !worldIdActionId) {
+    const missingVars = [];
+    if (!worldIdAppId) missingVars.push("NEXT_PUBLIC_WLD_APP_ID");
+    if (!worldIdActionId) missingVars.push("NEXT_PUBLIC_WLD_ACTION_ID");
+    if (captchaProvider === 'recaptcha' && !recaptchaSiteKey) missingVars.push("NEXT_PUBLIC_RECAPTCHA_SITE_KEY");
+    if (captchaProvider === 'hcaptcha' && !hcaptchaSiteKey) missingVars.push("NEXT_PUBLIC_HCAPTCHA_SITE_KEY");
+
+    console.error(`Layout: Client-side environment variables missing: ${missingVars.join(", ")}`);
     // Render a fallback or throw an error during build if preferred
     return (
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
           <div>
-            Error: Application is misconfigured. Missing required configuration.
+            Error: Application is misconfigured. Missing required configuration:
+            <ul className="list-disc pl-5 mt-2">
+              {missingVars.map(v => <li key={v}>{v}</li>)}
+            </ul>
           </div>
         </body>
       </html>
@@ -43,6 +66,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <CaptchaProviderWrapper
           recaptchaSiteKey={recaptchaSiteKey}
+          hcaptchaSiteKey={hcaptchaSiteKey}
           appId={worldIdAppId}
           actionId={worldIdActionId}
         >

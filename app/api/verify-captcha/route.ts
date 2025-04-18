@@ -81,7 +81,7 @@ async function verifyWorldID(idkitResponse: IDKitResponse): Promise<[boolean, st
         return [false, 'World ID environment variables (NEXT_PUBLIC_WLD_APP_ID, NEXT_PUBLIC_WLD_ACTION_ID) not configured on the server.'];
     }
 
-    // Prepare the payload for the Worldcoin /verify API
+    // Prepare the payload for the World /verify API
     // This includes the proof details received from the frontend, plus the server-side Action ID.
     // The signal received from the frontend should also be included if provided.
     const payloadToSend = {
@@ -89,7 +89,6 @@ async function verifyWorldID(idkitResponse: IDKitResponse): Promise<[boolean, st
         action: WLD_ACTION_ID, // Use the server-side Action ID for verification
         signal: idkitResponse.signal ?? '', // Use signal from frontend if present, otherwise empty string
     };
-    console.log("Verifying World ID with payload:", payloadToSend); // Debug log
 
     try {
         const verifyRes = await fetch(WORLD_ID_VERIFY_URL, {

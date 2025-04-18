@@ -6,7 +6,8 @@ import { WidCaptchaProvider } from '@/wid-captcha-context'; // Adjust path if ne
 interface CaptchaProviderWrapperProps {
     appId: string;
     actionId: string;
-    recaptchaSiteKey: string;
+    recaptchaSiteKey?: string;
+    hcaptchaSiteKey?: string;
     children: React.ReactNode;
 }
 
@@ -14,6 +15,7 @@ export function CaptchaProviderWrapper({
     appId,
     actionId,
     recaptchaSiteKey,
+    hcaptchaSiteKey,
     children
 }: CaptchaProviderWrapperProps) {
 
@@ -33,6 +35,7 @@ export function CaptchaProviderWrapper({
             appId={appId}
             actionId={actionId}
             recaptchaSiteKey={recaptchaSiteKey}
+            hcaptchaSiteKey={hcaptchaSiteKey}
             onVerificationComplete={handleVerificationResult}
             onError={handleError}
         >

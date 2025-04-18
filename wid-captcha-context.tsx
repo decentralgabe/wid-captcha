@@ -179,8 +179,6 @@ export const WidCaptchaProvider: React.FC<{
         return { success: false, method: "none", data: err.message } as VerificationResult;
       }
 
-      console.log("Sending verification payload to API:", payload); // Debug log
-
       try {
         const response = await fetch("/api/verify-captcha", {
           method: "POST",
@@ -198,7 +196,6 @@ export const WidCaptchaProvider: React.FC<{
         })
 
         const result: ApiVerificationResponse = await response.json()
-        console.log("Received API verification response:", result); // Debug log
 
         if (response.ok && result.success) {
           // Determine method from API response if provided, otherwise infer

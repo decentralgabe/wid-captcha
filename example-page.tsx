@@ -23,6 +23,27 @@ export default function ExamplePage() {
   // Minimum time (in ms) that the verification pending state should be shown
   const MIN_VERIFICATION_DISPLAY_TIME = 2500;
 
+  // Function to detect if the current page load is a refresh
+  const detectPageRefresh = () => {
+    // Modern method using Navigation Timing Level 2 API
+    if (window.performance && window.performance.getEntriesByType) {
+      const navigationEntries = window.performance.getEntriesByType('navigation');
+      if (navigationEntries.length > 0) {
+        // Use type assertion with any to avoid type errors
+        const navEntry = navigationEntries[0] as any;
+        return navEntry.type === 'reload';
+      }
+    }
+
+    // Fallback for older browsers
+    if (window.performance && window.performance.navigation) {
+      return window.performance.navigation.type === window.performance.navigation.TYPE_RELOAD;
+    }
+
+    // Default fallback - can't detect, assume not a refresh
+    return false;
+  };
+
   // Check localStorage for verification status on initial load
   useEffect(() => {
     // Only run on client side
@@ -93,33 +114,34 @@ export default function ExamplePage() {
 
   const appId = process.env.NEXT_PUBLIC_WLD_APP_ID;
   const actionId = process.env.NEXT_PUBLIC_WLD_ACTION_ID;
+  const captchaProvider = (process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER || 'recaptcha') as 'recaptcha' | 'hcaptcha';
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
 
-  if (!appId || !actionId || !recaptchaSiteKey) {
-    console.error("Required environment variables (NEXT_PUBLIC_WLD_APP_ID, NEXT_PUBLIC_WLD_ACTION_ID, NEXT_PUBLIC_RECAPTCHA_SITE_KEY) are not properly set.");
-    return <div className="p-4 text-red-600">Application is not configured correctly. Missing required IDs.</div>;
+  // Get the appropriate site key based on the selected provider
+  const captchaSiteKey = captchaProvider === 'recaptcha' ? recaptchaSiteKey : hcaptchaSiteKey;
+
+  // Check if the essential variables are set and not empty
+  if (!appId || !actionId || !captchaSiteKey || appId === "" || actionId === "" || captchaSiteKey === "") {
+    const missingVars = [];
+    if (!appId || appId === "") missingVars.push("NEXT_PUBLIC_WLD_APP_ID");
+    if (!actionId || actionId === "") missingVars.push("NEXT_PUBLIC_WLD_ACTION_ID");
+    if (captchaProvider === 'recaptcha' && (!recaptchaSiteKey || recaptchaSiteKey === "")) {
+      missingVars.push("NEXT_PUBLIC_RECAPTCHA_SITE_KEY");
+    }
+    if (captchaProvider === 'hcaptcha' && (!hcaptchaSiteKey || hcaptchaSiteKey === "")) {
+      missingVars.push("NEXT_PUBLIC_HCAPTCHA_SITE_KEY");
+    }
+
+    console.error(`Required environment variables (${missingVars.join(", ")}) are not properly set.`);
+    return <div className="p-4 text-red-600">
+      <p>Application is not configured correctly. Missing required IDs:</p>
+      <ul className="list-disc pl-5 mt-2">
+        {missingVars.map(v => <li key={v}>{v}</li>)}
+      </ul>
+      <p className="mt-3">Current CAPTCHA provider: <strong>{captchaProvider}</strong></p>
+    </div>;
   }
-
-  // Function to detect if the current page load is a refresh
-  const detectPageRefresh = () => {
-    // Modern method using Navigation Timing Level 2 API
-    if (window.performance && window.performance.getEntriesByType) {
-      const navigationEntries = window.performance.getEntriesByType('navigation');
-      if (navigationEntries.length > 0) {
-        // Use type assertion with any to avoid type errors
-        const navEntry = navigationEntries[0] as any;
-        return navEntry.type === 'reload';
-      }
-    }
-
-    // Fallback for older browsers
-    if (window.performance && window.performance.navigation) {
-      return window.performance.navigation.type === window.performance.navigation.TYPE_RELOAD;
-    }
-
-    // Default fallback - can't detect, assume not a refresh
-    return false;
-  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -150,7 +172,8 @@ export default function ExamplePage() {
         key={captchaKey}
         appId={appId as `app_${string}`}
         actionId={actionId}
-        recaptchaSiteKey={recaptchaSiteKey}
+        recaptchaSiteKey={captchaProvider === 'recaptcha' ? recaptchaSiteKey : undefined}
+        hcaptchaSiteKey={captchaProvider === 'hcaptcha' ? hcaptchaSiteKey : undefined}
         onVerificationComplete={handleVerificationComplete}
         onVerificationStart={handleVerificationStart}
         hideSuccessMessage={true}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { VerificationLevel, ISuccessResult, IDKitWidget, useIDKit } from "@worldcoin/idkit"
 import type { VerificationResult } from "./types" // Import type only
+import WorldLogo from "@/styles/world-logo.svg" // Import the new World ID logo
 
 // Define IDKit global window interface
 declare global {
@@ -298,7 +299,12 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
           onSuccess={handleWorldIDSuccess}
           container_id={worldIdContainerId}
         >
-          {({ open }) => <Button onClick={open}>Verify with World ID</Button>}
+          {({ open }) =>
+            <Button onClick={open} variant="outline" className="w-[70%] mx-auto justify-center items-center space-x-1 border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+              <WorldLogo className="w-6 h-6" />
+              <span>Verify with World ID</span>
+            </Button>
+          }
         </IDKitWidget>
       ),
       renderCaptchaWidget: () => (
@@ -369,7 +375,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
               <div className="space-y-4">
                 {/* World ID Button */}
                 {appId && actionId && (
-                  <div className="text-center">
+                  <div className="text-center flex justify-center">
                     <IDKitWidget
                       app_id={appId as `app_${string}`}
                       action={actionId}
@@ -380,8 +386,8 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
                       container_id={worldIdContainerId}
                     >
                       {({ open }) =>
-                        <Button onClick={open} variant="outline" className="w-full justify-center items-center space-x-2 border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
-                          <svg className="w-5 h-5" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 31C24.2843 31 31 24.2843 31 16C31 7.71573 24.2843 1 16 1C7.71573 1 1 7.71573 1 16C1 24.2843 7.71573 31 16 31Z" fill="black" stroke="white" strokeWidth="2" /><path d="M16.0001 25.9999C18.3175 25.9999 20.5436 25.3232 22.3839 24.066C24.2242 22.8088 25.5915 20.0161 25.5915 16.9428C25.5915 13.8695 24.2242 11.0768 22.3839 9.81957C20.5436 8.56236 18.3175 7.88568 16.0001 7.88568C13.6826 7.88568 11.4565 8.56236 9.61621 9.81957C7.77592 11.0768 6.40858 13.8695 6.40858 16.9428C6.40858 20.0161 7.77592 22.8088 9.61621 24.066C11.4565 25.3232 13.6826 25.9999 16.0001 25.9999Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 17.5571V25.9999" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        <Button onClick={open} variant="outline" className="w-[70%] mx-auto justify-center items-center space-x-1 border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+                          <WorldLogo className="w-6 h-6" />
                           <span>Verify with World ID</span>
                         </Button>
                       }

@@ -60,7 +60,7 @@ export default function RootLayout({
           appId={worldIdAppId}
           actionId={worldIdActionId}
         >
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {children}
           </ThemeProvider>
         </CaptchaProviderWrapper>

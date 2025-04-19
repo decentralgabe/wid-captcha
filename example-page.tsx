@@ -152,9 +152,6 @@ export default function ExamplePage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h1 className={`text-2xl font-semibold mb-6 ${showSuccess ? 'text-green-600' : ''}`}>
-        {!showSuccess ? (isVerifying ? "Verifying..." : "Please Verify You Are Human") : "Verification Complete"}
-      </h1>
 
       {/* Always show the captcha component */}
       <WidCaptcha

@@ -3,21 +3,17 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import ReactConfetti from 'react-confetti';
 import { WidCaptcha } from "./wid-captcha"
 import { useWidCaptcha } from "./wid-captcha-context"
 import type { VerificationResult } from "./types"
 import Image from "next/image";
 import Link from "next/link";
-import { Confetti } from "./confetti";
 import "@/app/globals.css";
-import "@/app/marquee.css";
 
 export default function ExamplePage() {
   const router = useRouter()
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
   const [captchaKey, setCaptchaKey] = useState(Date.now());
-  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   const [showSuccess, setShowSuccess] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStartTime, setVerificationStartTime] = useState<number | null>(null);
@@ -34,15 +30,8 @@ export default function ExamplePage() {
       setShowSuccess(true);
       // Save verification status to localStorage
       localStorage.setItem('verificationStatus', 'success');
-      // Ensure window dimensions are set
-      if (windowSize.width === 0 || windowSize.height === 0) {
-        setWindowSize({
-          width: window.innerWidth,
-          height: window.innerHeight
-        });
-      }
     }
-  }, [isVerified, windowSize.width, windowSize.height]);
+  }, [isVerified]);
 
   // Function to detect if the current page load is a refresh
   const detectPageRefresh = () => {
@@ -84,21 +73,6 @@ export default function ExamplePage() {
         }
       }
     }
-
-    const handleResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      setWindowSize({ width, height });
-    };
-
-    // Initial sizing
-    handleResize();
-
-    // Add event listener
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleVerificationComplete = (result: VerificationResult) => {
@@ -125,13 +99,6 @@ export default function ExamplePage() {
       setShowSuccess(true);
       // Save verification status to localStorage
       localStorage.setItem('verificationStatus', 'success');
-      // Ensure window dimensions are set
-      if (windowSize.width === 0 || windowSize.height === 0) {
-        setWindowSize({
-          width: window.innerWidth,
-          height: window.innerHeight
-        });
-      }
     } else {
       setShowSuccess(false);
     }
@@ -183,47 +150,11 @@ export default function ExamplePage() {
     </div>;
   }
 
-  // Force window size update when success is shown
-  useEffect(() => {
-    if (showSuccess && (windowSize.width === 0 || windowSize.height === 0)) {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-    }
-  }, [showSuccess, windowSize]);
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <h1 className={`text-2xl font-semibold mb-6 ${showSuccess ? 'text-green-600' : ''}`}>
         {!showSuccess ? (isVerifying ? "Verifying..." : "Please Verify You Are Human") : "Verification Complete"}
       </h1>
-
-      {/* Show both react-confetti and our custom confetti for maximum effect */}
-      {showSuccess && (
-        <>
-          {/* Use built-in ReactConfetti when window dimensions are available */}
-          {windowSize.width > 0 && windowSize.height > 0 && (
-            <ReactConfetti
-              width={windowSize.width}
-              height={windowSize.height}
-              recycle={false}
-              numberOfPieces={500}
-              tweenDuration={10000}
-            />
-          )}
-
-          {/* Also use our custom Confetti component as a fallback */}
-          <Confetti />
-
-          {/* Marquee banner */}
-          <div className="marquee w-full overflow-hidden mb-4 animate-now">
-            <div className="marquee-content">
-              <span className="text-xl font-semibold">🎉 Verification Successful!! 🎉</span>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Always show the captcha component */}
       <WidCaptcha

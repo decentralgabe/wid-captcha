@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import "./marquee.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { CaptchaProviderWrapper } from "@/components/captcha-provider-wrapper"
 

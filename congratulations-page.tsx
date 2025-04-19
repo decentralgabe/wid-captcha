@@ -1,22 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
-import { Confetti } from "./confetti"
 
 // Rest of the code remains the same...
 
 export default function CongratulationsPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-purple-50 p-4">
-      {/* Add the Confetti component */}
-      <Confetti />
-
-      {/* Marquee banner */}
-      <div className="w-full overflow-hidden bg-gradient-to-r from-green-400 to-blue-500 text-white py-3 mb-8 rounded-lg shadow-lg">
-        <div className="marquee-content">
-          <span className="text-xl font-bold">🎉 CONGRATS ON BEING A HUMAN! 🎉</span>
-        </div>
-      </div>
-
       {/* Rest of the component remains the same... */}
       <Card className="w-full max-w-md bg-white rounded-lg shadow-lg">
         <CardContent className="p-8 flex flex-col items-center">

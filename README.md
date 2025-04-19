@@ -12,7 +12,7 @@ A React component that provides human verification using World ID with a configu
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/wid-captcha.git
+git clone https://github.com/decentralgabe/wid-captcha.git
 cd wid-captcha
 ```
 

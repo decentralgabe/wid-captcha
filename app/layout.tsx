@@ -25,15 +25,6 @@ export default function RootLayout({
   const worldIdAppId = process.env.NEXT_PUBLIC_WLD_APP_ID;
   const worldIdActionId = process.env.NEXT_PUBLIC_WLD_ACTION_ID;
 
-  // Debug environment variables
-  console.log("Layout Environment Variables:", {
-    "NEXT_PUBLIC_WLD_APP_ID": worldIdAppId || "missing",
-    "NEXT_PUBLIC_WLD_ACTION_ID": worldIdActionId || "missing",
-    "NEXT_PUBLIC_RECAPTCHA_SITE_KEY": recaptchaSiteKey || "missing",
-    "NEXT_PUBLIC_HCAPTCHA_SITE_KEY": hcaptchaSiteKey || "missing",
-    "NEXT_PUBLIC_CAPTCHA_PROVIDER": captchaProvider,
-  });
-
   // Determine which captcha key to check based on provider
   const hasCaptchaKey = captchaProvider === 'recaptcha' ? !!recaptchaSiteKey : !!hcaptchaSiteKey;
 

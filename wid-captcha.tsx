@@ -93,10 +93,8 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Monitor isVerified changes from context
   useEffect(() => {
-    console.log("wid-captcha: isVerified changed:", isVerified);
     // If verification becomes successful and we have a completion callback
     if (isVerified && onVerificationComplete && !contextIsVerifying) {
-      console.log("wid-captcha: Calling onVerificationComplete due to isVerified change");
       const successResult: VerificationResult = {
         success: true,
         method: captchaProvider,
@@ -110,7 +108,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
   const handleWorldIDSuccess = (result: ISuccessResult) => {
     setCaptchaClicked(true);
     setLocalError(null);
-    console.log("World ID Success (proof generated):", result);
   }
 
   // Handle World ID verification by calling the backend
@@ -124,20 +121,15 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     }
     try {
       if (onVerificationStart) {
-        console.log("Calling onVerificationStart from handleWorldIDVerify");
         onVerificationStart();
       }
-      console.log("Calling verifyProof with World ID data");
       const verificationResult = await verifyProof({ idkit_response: result })
-      console.log("World ID verification result:", verificationResult);
       if (!verificationResult.success) {
         setLocalError(verificationResult.data || "World ID cloud verification failed.");
       } else if (onVerificationComplete) {
-        console.log("World ID verification successful, calling onVerificationComplete with result");
         onVerificationComplete(verificationResult);
       }
     } catch (error) {
-      console.error("Error during World ID verifyProof call:", error)
       const message = error instanceof Error ? error.message : String(error);
       setLocalError(`World ID verification error: ${message}`);
     }
@@ -145,21 +137,16 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Success callback for both reCAPTCHA and hCaptcha
   const handleCaptchaSuccess = useCallback((token: string | null) => {
-    console.log(`${captchaProvider} success callback with token:`, !!token);
     setCaptchaClicked(true);
     setLocalError(null);
     if (token) {
       if (onVerificationStart) {
-        console.log(`Calling onVerificationStart from ${captchaProvider} success handler`);
         onVerificationStart();
       }
-      console.log(`Calling verifyProof with ${captchaProvider} token`);
       verifyProof({ captcha_token: token }).then(result => {
-        console.log(`${captchaProvider} verification result:`, result);
         if (!result.success) {
           setLocalError(result.data || `${captchaProvider} verification failed.`);
         } else if (onVerificationComplete) {
-          console.log(`${captchaProvider} verification successful, calling onVerificationComplete with result`);
           onVerificationComplete(result);
         }
       })
@@ -187,30 +174,18 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Render reCAPTCHA v2 Widget
   useEffect(() => {
-    console.log("Captcha render effect running with state:", {
-      isClient,
-      isCaptchaScriptLoaded,
-      captchaContainerRefExists: !!captchaContainerRef.current,
-      captchaWidgetId,
-      containerNotEmpty: captchaContainerRef.current?.innerHTML !== '',
-      grecaptchaExists: !!window.grecaptcha,
-      grecaptchaRenderExists: !!(window.grecaptcha && window.grecaptcha.render)
-    });
 
     if (!isClient || !isCaptchaScriptLoaded || !captchaContainerRef.current) {
-      console.log("Not rendering captcha: conditions not met");
       return;
     }
 
     // Clear container before rendering
     if (captchaWidgetId === null && captchaContainerRef.current.innerHTML !== '') {
-      console.log("Clearing container before rendering captcha");
       captchaContainerRef.current.innerHTML = '';
     }
 
     // Skip if widget ID already set
     if (captchaWidgetId !== null) {
-      console.log("Not rendering captcha: widget ID already set");
       return;
     }
 
@@ -220,7 +195,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
       try {
         if (captchaProvider === 'recaptcha' && window.grecaptcha && window.grecaptcha.render && recaptchaSiteKey) {
-          console.log("Rendering reCAPTCHA with site key:", recaptchaSiteKey);
           widgetId = window.grecaptcha.render(captchaContainerRef.current!, {
             sitekey: recaptchaSiteKey,
             callback: handleCaptchaSuccess,
@@ -228,7 +202,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
             'error-callback': handleCaptchaError,
           });
         } else if (captchaProvider === 'hcaptcha' && window.hcaptcha && hcaptchaSiteKey) {
-          console.log("Rendering hCaptcha with site key:", hcaptchaSiteKey);
           widgetId = window.hcaptcha.render(captchaContainerRef.current!, {
             sitekey: hcaptchaSiteKey,
             callback: handleCaptchaSuccess,
@@ -249,7 +222,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
         if (widgetId !== null) {
           setCaptchaWidgetId(widgetId);
-          console.log(`${captchaProvider} widget rendered successfully with ID:`, widgetId);
           return true;
         } else {
           console.error(`Failed to get widget ID for ${captchaProvider}.`);
@@ -266,9 +238,7 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
     // Try immediate render
     if (!renderCaptcha()) {
       // If immediate render fails, try again after a delay
-      console.log("First render attempt failed, trying again in 500ms");
       const retryTimeout = setTimeout(() => {
-        console.log("Retrying captcha render...");
         renderCaptcha();
       }, 500);
 
@@ -289,7 +259,6 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
 
   // Reset logic
   const handleResetClick = useCallback(() => {
-    console.log("Resetting CAPTCHA state and widget...");
     resetContextState();
     setCaptchaClicked(false);
     setLocalError(null);
@@ -298,10 +267,8 @@ export const WidCaptcha: React.FC<WidCaptchaProps> = ({
       try {
         if (captchaProvider === 'recaptcha' && window.grecaptcha?.reset) {
           window.grecaptcha.reset(captchaWidgetId as number);
-          console.log("reCAPTCHA widget reset.");
         } else if (captchaProvider === 'hcaptcha' && window.hcaptcha?.reset) {
           window.hcaptcha.reset(captchaWidgetId as string);
-          console.log("hCaptcha widget reset.");
         }
       } catch (resetError) {
         console.error(`Error resetting ${captchaProvider} widget (${captchaWidgetId}):`, resetError);
